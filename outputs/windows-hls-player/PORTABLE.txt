@@ -1,0 +1,7 @@
+COMO ABRIR LA APLICACION
+
+1. Haz clic derecho en el ZIP y elige "Extraer todo".
+2. Abre la carpeta extraida y ejecuta XuperPC.exe.
+3. Espera a que se abra la aplicacion en tu navegador.
+
+Conserva las carpetas Engine y _internal junto a XuperPC.exe.

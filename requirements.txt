@@ -1,0 +1,6 @@
+cryptography==50.0.2
+certifi==2026.10.19
+unicorn==2.1.4
+mmh3==5.3.1
+imageio-ffmpeg==0.6.0
+pyelftools

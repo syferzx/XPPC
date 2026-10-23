@@ -2,31 +2,22 @@
 
 Reproductor multimedia portable para Windows.
 
-[![DESCARGAR PARA WINDOWS](docs/download-windows.svg)](https://github.com/syferzx/XPPC/releases/latest/download/XuperPC-Windows-x64.zip)
+[![Descargar para Windows](docs/download-windows.svg)](https://github.com/syferzx/XPPC/releases/latest/download/XuperPC-Windows-x64.zip)
 
-**[Descargar para Windows — ZIP portable de 64 bits](https://github.com/syferzx/XPPC/releases/latest/download/XuperPC-Windows-x64.zip)**
+## Abrir la aplicaciÃ³n
 
+1. Descarga el ZIP de [Releases](https://github.com/syferzx/XPPC/releases/latest).
+2. Haz clic derecho y elige **Extraer todo**.
+3. Abre la carpeta y ejecuta **XuperPC.exe**.
 
-## Cómo abrirlo
+## CÃ³digo fuente y colaboraciÃ³n
 
-1. Descarga **XuperPC-Windows-x64.zip** desde el botón de arriba.
-2. Haz clic derecho en el ZIP y elige **Extraer todo**.
-3. Abre la carpeta extraída y ejecuta **XuperPC.exe**.
+AquÃ­ estÃ¡ el cÃ³digo del cliente: interfaz, catÃ¡logo, reproductor, favoritos, progreso y conexiÃ³n al servicio. Puedes analizarlo, modificarlo y proponer mejoras mediante pull requests.
 
-No necesitas instalar Python, FFmpeg ni BlueStacks. La aplicación abre tu navegador automáticamente. La primera apertura prepara una sesión propia y puede tardar un momento.
+Consulta [Desarrollo](docs/DESARROLLO.md) para ejecutar las fuentes, probar cambios y preparar un portable. El motor utiliza un componente binario externo; esta publicaciÃ³n no incluye su cÃ³digo fuente ni permite reconstruirlo. Las fuentes del cliente por sÃ­ solas no son una distribuciÃ³n autÃ³noma del motor.
 
-**No abras el EXE desde dentro del ZIP.** Conserva las carpetas `Engine` y `_internal` junto al ejecutable.
+El catÃ¡logo y la reproducciÃ³n dependen de servicios externos. Cada instalaciÃ³n conserva sus datos localmente en `Datos`.
 
-## Favoritos y actualizaciones
+## Licencia
 
-Tu sesión, favoritos y progreso se guardan en la carpeta **Datos**. Consérvala al actualizar y no la compartas con otras personas.
-
-La descarga publicada se prepara sin Datos ni sesiones de otra persona. Para compartir el programa, utiliza el ZIP de Releases, no tu carpeta de uso diario.
-
-## Requisitos
-
-Windows de 64 bits, un navegador e Internet. La disponibilidad de las fuentes depende del servicio utilizado.
-
-Los archivos automáticos **Source code** de GitHub no son el portable listo para abrir. Para usarlo elige **XuperPC-Windows-x64.zip**.
-
-Los componentes de terceros conservan sus propias licencias. La licencia del código original del cliente no los sustituye.
+[MIT](LICENSE) para el cÃ³digo original del cliente. Los componentes externos conservan sus [licencias](THIRD_PARTY_NOTICES.md).

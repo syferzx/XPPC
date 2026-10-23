@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>XuperPC · Tu próxima historia</title><link rel="stylesheet" href="/app.css?v=20261023-session16">
+</head>
+<body>
+<svg class="svg-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4.5 4.5L19 7"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  <symbol id="i-tv" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="m8 2 4 4 4-4M8 22h8"/></symbol>
+</defs></svg>
+<header class="topbar">
+  <a class="brand" href="#inicio" aria-label="XuperPC, inicio">Xuper<span>PC</span><i>STREAMING</i></a>
+  <nav class="main-nav" aria-label="Secciones de la biblioteca">
+    <button data-view="home" aria-current="page">Inicio</button><button data-view="movies" data-kind="movies">Películas</button><button data-view="series" data-kind="series">Series</button><button data-view="anime">Anime</button><button data-view="tv" data-kind="tv">TV en vivo</button><button data-view="favorites">Mi lista <span id="favoriteCount" class="nav-count" hidden>0</span></button>
+  </nav>
+  <label class="search-box"><svg><use href="#i-search"/></svg><input id="search" type="search" maxlength="120" placeholder="Buscar películas y series…" aria-label="Buscar en todo el catálogo"></label>
+  <div class="profile-mark" title="Biblioteca de este PC" aria-label="Biblioteca de este PC">PC</div>
+</header>
+<main>
+  <section id="homeView" aria-label="Inicio">
+    <div class="hero" id="hero">
+      <img id="heroImage" class="hero-image" alt="" referrerpolicy="no-referrer"><div class="hero-shade"></div>
+      <div class="hero-copy"><div class="hero-kicker"><span></span> TU PRÓXIMA HISTORIA</div><h1 id="heroTitle">Un mundo de historias.<br>Un solo lugar.</h1><div id="heroMetadata" class="hero-meta">Películas, series y televisión en vivo</div><p id="heroDescription">Encuentra algo que te encante. Guárdalo en tu lista y vuelve cuando quieras.</p><div class="hero-actions"><button id="heroOpen" class="primary" disabled><span aria-hidden="true">▶</span> Ver ahora</button><button id="heroFavorite" class="secondary" disabled><svg><use href="#i-plus"/></svg> Mi lista</button></div></div>
+      <button class="hero-arrow previous-slide" id="heroPrevious" aria-label="Título destacado anterior"><svg><use href="#i-chevron"/></svg></button><button class="hero-arrow next-slide" id="heroNext" aria-label="Título destacado siguiente"><svg><use href="#i-chevron"/></svg></button>
+      <div id="heroDots" class="hero-dots" aria-label="Títulos destacados"></div><div class="hero-caption">TU BIBLIOTECA.<br><strong>A TU MANERA.</strong></div>
+    </div>
+    <div class="home-shelves"><div id="providerSections" aria-label="Destacados del proveedor"></div>
+      <section class="shelf-section"><div class="section-heading"><h2 id="movieShelfHeading">Películas · Novedades</h2><button class="text-button" data-browse="movies">Ver todas <svg><use href="#i-chevron"/></svg></button></div><div class="shelf-wrap"><div id="movieShelf" class="shelf" aria-label="Películas destacadas"></div><button class="shelf-next" data-scroll="movieShelf" aria-label="Más películas"><svg><use href="#i-chevron"/></svg></button></div></section>
+      <section class="shelf-section"><div class="section-heading"><h2 id="seriesShelfHeading">Series · Novedades</h2><button class="text-button" data-browse="series">Ver todas <svg><use href="#i-chevron"/></svg></button></div><div class="shelf-wrap"><div id="seriesShelf" class="shelf" aria-label="Series destacadas"></div><button class="shelf-next" data-scroll="seriesShelf" aria-label="Más series"><svg><use href="#i-chevron"/></svg></button></div></section>
+      <section class="live-banner"><div class="live-symbol"><svg><use href="#i-tv"/></svg></div><div><span class="eyebrow">EN ESTE MOMENTO</span><h2>Tu televisión, en vivo.</h2><p>Todos tus canales en un mismo lugar.</p></div><button class="secondary" data-browse="tv">Explorar canales <svg><use href="#i-chevron"/></svg></button></section>
+    </div>
+  </section>
+  <section id="catalogView" class="catalog-view" aria-label="Catálogo" hidden>
+    <div class="catalog-heading"><div><div class="eyebrow" id="catalogEyebrow">EXPLORA LA BIBLIOTECA</div><h1 id="catalogTitle">Películas</h1><p id="count" class="muted" role="status"></p></div><div id="favoriteFilters" class="filter-pills" hidden><button data-filter="all" aria-pressed="true">Todo</button><button data-filter="movies">Películas</button><button data-filter="series">Series</button><button data-filter="tv">TV</button></div></div>
+    <label id="categoryLabel" class="category-label" for="group" hidden>Categoría</label><select id="group" class="category-select" aria-label="Categoría" hidden></select><div id="items" class="poster-grid" aria-label="Resultados"></div>
+    <div id="paging" class="paging" hidden><button id="previous" class="secondary">Anterior</button><span id="pageLabel" class="muted"></span><button id="next" class="secondary">Siguiente</button></div>
+    <div id="loadMoreStatus" class="load-more-status" role="status" hidden><span id="catalogSpinner" class="catalog-spinner" aria-hidden="true" hidden></span><span id="loadMoreText"></span><button id="retryMore" class="secondary" hidden>Reintentar carga</button></div><p id="portalState" class="note" role="status"></p><p id="catalogNote" class="sr-only"></p>
+  </section>
+  <footer class="site-footer"><a class="brand footer-brand" href="#inicio">Xuper<span>PC</span></a><span>Una historia para cada momento.</span><span class="local-label"><span></span> Biblioteca local</span></footer>
+</main>
+<dialog id="watchDialog" class="watch-dialog" aria-labelledby="title">
+  <img id="watchBackdrop" class="watch-backdrop" alt="" aria-hidden="true" referrerpolicy="no-referrer" hidden>
+  <div class="watch-heading"><div><div id="selectedType" class="eyebrow">PELÍCULA</div><h2 id="title">Selecciona un título</h2></div><div class="watch-heading-actions"><button id="selectedFavorite" class="icon-button" aria-label="Añadir a Mi lista"><svg><use href="#i-heart"/></svg></button><button id="closePlayer" class="icon-button" aria-label="Cerrar reproductor"><svg><use href="#i-close"/></svg></button></div></div>
+  <div class="watch-overview">
+    <div id="info" hidden><div id="metadata" class="muted"></div><p id="description"></p><p id="vodNotice" class="note"></p></div>
+    <div class="watch-playback">
+  <div id="player" class="player" data-state="idle"><video id="video" controls autoplay playsinline></video>
+    <div id="playerLoading" class="player-loading" role="status" aria-label="Cargando video" hidden><span class="loading-label" aria-hidden="true">Cargando…</span></div>
+    <div class="player-actions"><button id="trackSettings" type="button" aria-controls="trackPanel" aria-expanded="false">Audio y subtítulos</button><button id="sound" type="button">Silenciar</button><button id="retry" type="button">Reconectar</button></div>
+    <div id="trackPanel" class="track-panel" hidden><label for="audioSelect">Idioma de audio</label><select id="audioSelect" disabled aria-label="Idioma de audio"></select><label for="subtitleSelect">Subtítulos</label><select id="subtitleSelect" disabled aria-label="Subtítulos"><option value="-1">Desactivados</option></select><p id="trackNote">Las opciones dependen de las pistas disponibles en cada video.</p></div>
+  </div>
+  <div class="watch-state"><span id="status" class="badge" role="status">Listo para reproducir</span><span id="details" class="muted"></span></div><p id="error" role="status"></p>
+    </div>
+  </div>
+  <div class="watch-extras">
+  <section id="episodeSection" class="episode-section" aria-labelledby="episodeHeading" hidden>
+    <div id="seasonBar" class="season-bar" hidden><label for="seasonSelect">Temporada</label><select id="seasonSelect" aria-label="Seleccionar temporada"></select><span id="seasonNote" class="muted" role="status"></span></div>
+    <div class="episode-heading"><h3 id="episodeHeading">Episodios</h3><span id="episodeCount" class="muted"></span></div>
+    <p class="episode-hint">Pulsa un capítulo para reproducirlo. Tu progreso se guarda automáticamente.</p>
+    <label id="episodeLabel" hidden for="episodes">Episodio</label><select id="episodes" aria-label="Seleccionar episodio" hidden></select>
+    <div id="episodeList" class="episode-list" role="group" aria-label="Seleccionar capítulo"></div>
+  </section>
+<p class="sr-only" id="tvSessionNote">Transmisión en vivo. <span id="expiry"></span></p>
+  <section id="recommendationsSection" class="watch-recommendations" aria-labelledby="recommendationsHeading" hidden><h3 id="recommendationsHeading">Quizás te guste</h3><p id="recommendationsNote" class="muted" role="status"></p><div id="recommendationsItems" class="recommendations-grid"></div></section>
+  </div>
+</dialog>
+<button id="backToTop" class="back-to-top" aria-label="Volver arriba" title="Volver arriba"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 11 6-6 6 6M12 5v14"/></svg></button>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<script src="/vendor/hls.min.js"></script><script src="/player.js?v=20261023-session16"></script><script src="/library.js?v=20261023-session16"></script>
+</body></html>
+
