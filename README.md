@@ -6,7 +6,6 @@ Reproductor multimedia portable para Windows.
 
 **[Descargar para Windows — ZIP portable de 64 bits](https://github.com/syferzx/XPPC/releases/latest/download/XuperPC-Windows-x64.zip)**
 
-> La primera release se está preparando. El botón funcionará cuando el ZIP esté adjunto y la versión publicada.
 
 ## Cómo abrirlo
 
