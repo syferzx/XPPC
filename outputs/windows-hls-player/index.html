@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>XuperPC · Tu próxima historia</title><link rel="stylesheet" href="/app.css?v=20261023-session16">
+  <title>XuperPC · Tu próxima historia</title><link rel="stylesheet" href="/app.css?v=20261024-live-layout3">
 </head>
 <body>
 <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
@@ -37,8 +37,14 @@
     </div>
   </section>
   <section id="catalogView" class="catalog-view" aria-label="Catálogo" hidden>
-    <div class="catalog-heading"><div><div class="eyebrow" id="catalogEyebrow">EXPLORA LA BIBLIOTECA</div><h1 id="catalogTitle">Películas</h1><p id="count" class="muted" role="status"></p></div><div id="favoriteFilters" class="filter-pills" hidden><button data-filter="all" aria-pressed="true">Todo</button><button data-filter="movies">Películas</button><button data-filter="series">Series</button><button data-filter="tv">TV</button></div></div>
-    <label id="categoryLabel" class="category-label" for="group" hidden>Categoría</label><select id="group" class="category-select" aria-label="Categoría" hidden></select><div id="items" class="poster-grid" aria-label="Resultados"></div>
+    <div class="catalog-heading"><div><div class="eyebrow" id="catalogEyebrow">EXPLORA LA BIBLIOTECA</div><div class="catalog-title-row"><h1 id="catalogTitle">Películas</h1><p id="count" class="muted" role="status"></p></div></div><div id="favoriteFilters" class="filter-pills" hidden><button data-filter="all" aria-pressed="true">Todo</button><button data-filter="movies">Películas</button><button data-filter="series">Series</button><button data-filter="tv">TV</button></div></div>
+    <label id="categoryLabel" class="category-label" for="group" hidden>Categoría</label><select id="group" class="category-select" aria-label="Categoría" hidden></select>
+    <div id="catalogLayout"><div id="items" class="poster-grid" aria-label="Resultados"></div>
+      <aside id="livePane" class="live-pane" aria-label="Reproductor de TV en vivo" hidden>
+        <div class="live-heading"><span class="live-indicator">EN VIVO</span><h2 id="liveTitle">Selecciona un canal</h2></div>
+        <div id="livePlayerDock"></div><p id="liveHint" class="muted">Elige un canal de las categorías para cambiar la transmisión.</p>
+      </aside>
+    </div>
     <div id="paging" class="paging" hidden><button id="previous" class="secondary">Anterior</button><span id="pageLabel" class="muted"></span><button id="next" class="secondary">Siguiente</button></div>
     <div id="loadMoreStatus" class="load-more-status" role="status" hidden><span id="catalogSpinner" class="catalog-spinner" aria-hidden="true" hidden></span><span id="loadMoreText"></span><button id="retryMore" class="secondary" hidden>Reintentar carga</button></div><p id="portalState" class="note" role="status"></p><p id="catalogNote" class="sr-only"></p>
   </section>
@@ -49,7 +55,7 @@
   <div class="watch-heading"><div><div id="selectedType" class="eyebrow">PELÍCULA</div><h2 id="title">Selecciona un título</h2></div><div class="watch-heading-actions"><button id="selectedFavorite" class="icon-button" aria-label="Añadir a Mi lista"><svg><use href="#i-heart"/></svg></button><button id="closePlayer" class="icon-button" aria-label="Cerrar reproductor"><svg><use href="#i-close"/></svg></button></div></div>
   <div class="watch-overview">
     <div id="info" hidden><div id="metadata" class="muted"></div><p id="description"></p><p id="vodNotice" class="note"></p></div>
-    <div class="watch-playback">
+    <div class="watch-playback" id="watchPlayback">
   <div id="player" class="player" data-state="idle"><video id="video" controls autoplay playsinline></video>
     <div id="playerLoading" class="player-loading" role="status" aria-label="Cargando video" hidden><span class="loading-label" aria-hidden="true">Cargando…</span></div>
     <div class="player-actions"><button id="trackSettings" type="button" aria-controls="trackPanel" aria-expanded="false">Audio y subtítulos</button><button id="sound" type="button">Silenciar</button><button id="retry" type="button">Reconectar</button></div>
@@ -72,6 +78,6 @@
 </dialog>
 <button id="backToTop" class="back-to-top" aria-label="Volver arriba" title="Volver arriba"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 11 6-6 6 6M12 5v14"/></svg></button>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-<script src="/vendor/hls.min.js"></script><script src="/player.js?v=20261023-session16"></script><script src="/library.js?v=20261023-session16"></script>
+<script src="/vendor/hls.min.js"></script><script src="/player.js?v=20261024-live-layout3"></script><script src="/library.js?v=20261024-live-layout3"></script>
 </body></html>
 

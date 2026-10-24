@@ -14,11 +14,12 @@ La aplicación se abre en tu navegador. No necesitas instalar Python, FFmpeg ni 
 
 Esta variante inicia directamente el motor incluido y no contiene el lanzador `XuperPC.exe` de PyInstaller. Esto no certifica la seguridad de las dependencias incluidas.
 
-## Novedades de la versión 0.1.1
+## Novedades de la versión 0.1.2
 
-- TV agrupada por categorías, con búsqueda y filtros Premium y +18 cuando el proveedor los entrega.
-- Corrección de la renovación automática de la sesión existente, conservando la misma cuenta y dispositivo.
-- Inicio alternativo mediante BAT.
+- TV en vivo con reproductor integrado a la derecha y categorías desplegables a la izquierda.
+- Hasta dos columnas de canales, con la categoría de adultos al final y cerrada inicialmente.
+- Reproducción automática al entrar, inicialmente sin sonido, y regreso al último canal visto durante la sesión.
+- Encabezado compacto y ancho y margen superior uniformes entre secciones.
 
 Al actualizar, cierra la versión anterior y conserva tu carpeta `Datos`: contiene tu sesión, favoritos y progreso. No la compartas con otras personas. El ZIP publicado se prepara sin datos personales.
 

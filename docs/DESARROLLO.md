@@ -44,7 +44,7 @@ python -m unittest discover -s work -p "test_*.py"
 
 Crea una rama y envía un pull request describiendo el cambio y cómo lo comprobaste. No adjuntes `Datos`, sesiones, tokens, capturas de tráfico ni archivos de tu instalación personal. Para distribuir binarios revisa también las condiciones de sus componentes externos.
 
-## Prueba de la interfaz de categorías
+## Pruebas de categorías y TV en vivo
 
 Con Node.js compatible con jsdom 29.1.1, desde la raíz del repositorio:
 

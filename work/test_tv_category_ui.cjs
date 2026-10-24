@@ -10,13 +10,13 @@ const items=[
   {id:'4',name:'Canal adulto',kind:'tv',groups:['Adultos +18']},
 ];
 const ctx=vm.createContext({document,Option:dom.window.Option,$:id=>document.getElementById(id),items,
-  view:'tv',kind:'tv',categorySelection:{tv:''},favoriteItems:[],searchItems:[],favoriteFilter:'all',
+  selected:null,view:'tv',kind:'tv',categorySelection:{tv:''},favoriteItems:[],searchItems:[],favoriteFilter:'all',
   groupSeries:list=>list,globalSearch:()=>false,catalogTotals:{},catalogLoading:false,searchLoading:false,
   syncFavoriteControls:()=>{},updateInfiniteStatus:()=>{},emptyState:()=>document.createElement('p'),
   tvCard:item=>{const node=document.createElement('article');node.className='tv-item';node.dataset.id=item.id;return node},
 });
-vm.runInContext(source.slice(source.indexOf('function tvGroups('),source.indexOf('function setView(')),ctx);
-vm.runInContext('render()',ctx);
+vm.runInContext(source.slice(source.indexOf('const tvCategoryOpen='),source.indexOf('function setView(')),ctx);
+vm.runInContext('tvCatalogLoading=false;render()',ctx);
 assert.equal(document.querySelectorAll('.tv-item').length,4);
 assert.equal(document.querySelectorAll('.tv-category-section').length,4);
 assert.equal(document.querySelectorAll('#group option').length,6);
