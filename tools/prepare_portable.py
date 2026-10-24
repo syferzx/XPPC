@@ -26,6 +26,7 @@ def main():
     for name in ('index.html','app.css','player.js','library.js','vendor','assets'):copy(app/name,out/'Engine/app'/name)
     for name in ('app-bootstrap.json','rutas-portal.json'):copy(ROOT/'outputs'/name,out/'Engine/outputs'/name)
     copy(app/'PORTABLE.txt',out/'LEEME.txt')
+    copy(app/'Iniciar.bat',out/'Iniciar.bat')
     for name in ('LICENSE','THIRD_PARTY_NOTICES.md','LICENSES'):copy(ROOT/name,out/'Documentacion'/name)
     if args.rebuild_launcher:
         subprocess.run([sys.executable,'-m','PyInstaller',str(app/'bootstrap.py'),'--name','XuperPC','--onedir','--windowed','--noupx','--icon',str(app/'assets/xuperpc.ico'),'--distpath',str(out.parent/'launcher-dist'),'--workpath',str(out.parent/'launcher-build'),'--specpath',str(out.parent/'launcher-build')],check=True)

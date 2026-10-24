@@ -1,6 +1,7 @@
 """Expose cached catalog metadata; keep playback licenses on the server."""
 import json,hashlib,urllib.parse
 from pathlib import Path
+from channel_groups import channel_groups
 
 def load_catalog(root,transport):
  items={};sources={}
@@ -14,7 +15,7 @@ def load_catalog(root,transport):
    if str(a.get('cdnType'))!='1' or not media:continue
    path='/live/'+urllib.parse.quote(media,safe='')+'.m3u8'
    variants.append({'url':urllib.parse.urlunsplit((transport.origin.scheme,transport.origin.netloc,path,'','')),'license':license,'quality':str(a.get('quality',''))})
-  items[key]={'id':key,'name':c.get('name','Canal'),'kind':'tv','number':str(c.get('channelNumber','')),'codec':c.get('supportVideoType') or '', 'groups':[], 'playable':bool(variants)}
+  items[key]={'id':key,'name':c.get('name','Canal'),'kind':'tv','number':str(c.get('channelNumber','')),'codec':c.get('supportVideoType') or '', 'groups':channel_groups(c), 'playable':bool(variants)}
   if variants:
    sources[key]=variants[0]
    if sources[key]['url']==transport.url:

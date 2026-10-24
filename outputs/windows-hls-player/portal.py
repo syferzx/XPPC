@@ -17,6 +17,12 @@ class PortalSessionConflict(RuntimeError):
 class PortalSessionExpired(RuntimeError):
     """An existing installation needs a valid ordinary sign-in session."""
 
+def same_user_id(value,expected):
+    """Provider DTOs use both JSON integers and decimal identifier strings."""
+    return (type(value) in (str,int) and type(expected) in (str,int)
+            and bool(str(value)) and bool(str(expected)) and str(value)==str(expected))
+
+
 def recover_existing_session(root):
     """Sign in the same registered installation; never create or rotate identities."""
     from probe_portal_session import build_client
@@ -31,15 +37,23 @@ def recover_existing_session(root):
     if Path(actual_directory).resolve()!=directory.resolve():raise PortalSessionExpired('Profile location differs')
     _,_,token=client.request('/api/portalCore/v3/snToken',params)
     data=token.get('data')
-    if (str(token.get('returnCode'))!='0' or not isinstance(data,dict) or not data.get('snToken')
-        or data.get('isNew') in (True,1,'1','true')):raise PortalSessionExpired('Existing installation not accepted')
+    if str(token.get('returnCode'))!='0' or not isinstance(data,dict) or not data.get('snToken'):
+        raise PortalSessionExpired('Existing installation not accepted')
+    # For an already registered device the provider returns isNew="1" together
+    # with its existing userId and SN. Require both to match before continuing;
+    # the flag alone must neither reject that login nor authorize a new account.
+    if data.get('isNew') in (True,1,'1','true') and (
+        not old.get('userId') or not same_user_id(data.get('userId'),old['userId'])
+        or not profile.get('metadata',{}).get('sn')
+        or data.get('sn')!=profile['metadata']['sn']):
+        raise PortalSessionExpired('Existing account and installation were not confirmed')
     sn=data.get('sn')
     if sn and sn!=profile.get('metadata',{}).get('sn'):raise PortalSessionExpired('Installation changed')
     _,_,response=client.request('/api/portalCore/v8/active',{'snToken':data['snToken'],'authVersion':'','authCode':'',
         'macAddr':'02:00:00:00:00:00','reserve1':'','openNum':1,'channel':'default','matadata':'','signdata':''})
     session=response.get('data')
     if (str(response.get('returnCode'))!='0' or not isinstance(session,dict) or not session.get('userToken')
-        or session.get('userId')!=old.get('userId') or not session.get('portalCodeList')):
+        or not same_user_id(session.get('userId'),old.get('userId')) or not session.get('portalCodeList')):
         raise PortalSessionExpired('Same-account sign-in not accepted')
     temporary=directory/'active-data.private.tmp'
     temporary.write_text(json.dumps(session,ensure_ascii=False),encoding='utf8')

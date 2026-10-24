@@ -6,6 +6,7 @@ from ranger_live_v9 import LiveV9Protocol
 from ranger_slb_http import SlbHttpClient
 from artwork import artwork
 from access_profile import tv_template,tv_route
+from channel_groups import channel_groups
 
 SLB_HOST='eijbs.gn5h3hxar2k.com'
 SLB_IP='206.253.89.122'
@@ -39,6 +40,22 @@ class TvService:
             data=self.portal.request('/api/portalCore/v6/getLiveData',{'columnId':76182,'dataVersion':'','expireTimeStr':'','pageSize':3000,'pageNum':1})
         rows=data.get('channelList',[])
         if not rows or len(rows)>3000:raise ValueError('Invalid TV catalog')
+        # The provider serves +18 as a separate catalog, not as a visibility
+        # flag in ChannelList. Query it with the same account and permissions.
+        try:
+            with self.portal.lock:
+                adult=self.portal.request('/api/portalCore/v6/getLiveData',{'columnId':76208,'dataVersion':'','expireTimeStr':'','pageSize':3000,'pageNum':1})
+            adult_rows=adult.get('channelList',[])
+            if not isinstance(adult_rows,list) or len(adult_rows)>3000:raise ValueError('Invalid adult TV catalog')
+            merged={str(c['channelCode']):c for c in rows}
+            for channel in adult_rows:
+                merged[str(channel['channelCode'])]={**channel,'categoryName':'Adultos +18'}
+            rows=list(merged.values())
+            self.state.update(adult_channel_count=len(adult_rows),adult_catalog_error=None)
+        except Exception as error:
+            # An unavailable/denied extra category must not hide general TV.
+            self.state.update(adult_channel_count=0,adult_catalog_error=type(error).__name__)
+        data={**data,'channelList':rows,'channelListTotalSize':len(rows)}
         # Keep this installation's own catalog available across restarts when
         # the portal is slow; licenses are still checked before playback.
         cached=self.root/'work/channel-metadata-decoded.json'
@@ -55,7 +72,7 @@ class TvService:
             if self.clock()-self.catalog_updated>=900:
                 try:self.refresh_catalog()
                 except Exception as ex:self.state['last_error']=type(ex).__name__
-            return [{'id':key,'name':c.get('name','Canal'),'kind':'tv','number':str(c.get('channelNumber','')),'codec':c.get('supportVideoType') or '', 'groups':[],'playable':any(str(a.get('cdnType'))=='1' for a in c.get('liveAddressList',[])),**artwork(c)} for key,c in self.channels.items()]
+            return [{'id':key,'name':c.get('name','Canal'),'kind':'tv','number':str(c.get('channelNumber','')),'codec':c.get('supportVideoType') or '', 'groups':channel_groups(c),'playable':any(str(a.get('cdnType'))=='1' for a in c.get('liveAddressList',[])),**artwork(c)} for key,c in self.channels.items()]
     def selection(self,owner):
         channel=self.channels[owner]
         variants=[a for a in channel.get('liveAddressList',[]) if str(a.get('cdnType'))=='1' and a.get('license')]

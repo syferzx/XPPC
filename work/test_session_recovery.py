@@ -53,5 +53,37 @@ class Tests(unittest.TestCase):
                 return 200,b'',{'returnCode':'0','data':data}
         with patch('probe_portal_session.build_client',return_value=(Client(),{},directory)):recover_existing_session(self.root)
         saved=json.loads((directory/'active-data.private.json').read_text());self.assertEqual(saved['userToken'],'new');self.assertEqual(saved['availableTime'],123)
+    def test_registered_device_flag_accepts_only_matching_existing_account_and_sn(self):
+        self.profile();directory=self.directory;calls=[]
+        class Client:
+            def request(inner,endpoint,*args):
+                calls.append(endpoint)
+                data={'snToken':'token','sn':'same-sn','userId':'same','isNew':'1'} if endpoint.endswith('snToken') else {'userId':'same','userToken':'renewed','portalCodeList':[{}],'availableTime':123}
+                return 200,b'',{'returnCode':'0','data':data}
+        with patch('probe_portal_session.build_client',return_value=(Client(),{},directory)):recover_existing_session(self.root)
+        saved=json.loads((directory/'active-data.private.json').read_text())
+        self.assertEqual(saved['userId'],'same');self.assertEqual(saved['userToken'],'renewed');self.assertEqual(saved['availableTime'],123)
+        self.assertEqual(len(calls),2)
+    def test_registered_flag_without_same_user_and_sn_never_activates(self):
+        for identity in ({},{'userId':'other','sn':'same-sn'},{'userId':'same','sn':'other-sn'}):
+            with self.subTest(identity=identity):
+                self.profile();directory=self.directory;calls=[];before=(directory/'active-data.private.json').read_bytes()
+                class Client:
+                    def request(inner,endpoint,*args):
+                        calls.append(endpoint)
+                        return 200,b'',{'returnCode':'0','data':{'snToken':'token','isNew':'1',**identity}}
+                with patch('probe_portal_session.build_client',return_value=(Client(),{},directory)):
+                    with self.assertRaises(PortalSessionExpired):recover_existing_session(self.root)
+                self.assertEqual(len(calls),1);self.assertEqual((directory/'active-data.private.json').read_bytes(),before)
+
+    def test_same_numeric_id_in_string_and_integer_dtos_is_not_an_account_change(self):
+        self.profile();directory=self.directory
+        (directory/'active-data.private.json').write_text(json.dumps({'userId':12345,'userToken':'old'}))
+        class Client:
+            def request(inner,endpoint,*args):
+                data={'snToken':'token','sn':'same-sn','userId':'12345','isNew':'1'} if endpoint.endswith('snToken') else {'userId':12345,'userToken':'renewed','portalCodeList':[{}]}
+                return 200,b'',{'returnCode':'0','data':data}
+        with patch('probe_portal_session.build_client',return_value=(Client(),{},directory)):recover_existing_session(self.root)
+        self.assertEqual(json.loads((directory/'active-data.private.json').read_text())['userId'],12345)
 
 if __name__=='__main__':unittest.main()

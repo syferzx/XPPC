@@ -9,7 +9,7 @@ function applyCatalogPage(target,page,data,append){
 }
 let seasonCollection=null,seasonGroupTitle='',seriesOpening=0;
 let moreAvailable=false,infiniteError=false,infiniteTimer;
-let categorySelection={movies:'',series:'',anime:''},categoryTicket=0,featuredTask=null,lastFeaturedRefresh=0;
+let categorySelection={movies:'',series:'',anime:'',tv:''},categoryTicket=0,featuredTask=null,lastFeaturedRefresh=0;
 /* Catalog presentation; playback remains in player.js. Favorites live in the PC profile. */
 let view='home',favoriteItems=[],favoriteFilter='all',favoriteBusy=new Set(),favoriteReady=false,favoriteSaveQueue=Promise.resolve(),heroIndex=0,heroItems=[];
 let shelves={movies:[],series:[]},homeLoading=true,homeErrors={},toastTimer,searchReturnView='home';
@@ -63,19 +63,48 @@ function renderShelves(){
   syncFavoriteControls();
 }
 function globalSearch(){return view==='search';}
+function tvGroups(item){return Array.isArray(item.groups)&&item.groups.length?item.groups:['General y variedades'];}
+function fillTvCategories(){
+  const channels=items.filter(item=>item.kind==='tv'),counts=new Map();
+  channels.forEach(item=>new Set(tvGroups(item)).forEach(name=>counts.set(name,(counts.get(name)||0)+1)));
+  if(!counts.has('Adultos +18'))counts.set('Adultos +18',0);
+  const names=[...counts.keys()].sort((a,b)=>a.localeCompare(b,'es'));
+  if(!counts.has(categorySelection.tv))categorySelection.tv='';
+  $('group').replaceChildren(new Option('Todas las categorías',''));
+  names.forEach(name=>$('group').append(new Option(name+' ('+counts.get(name)+')',name)));
+  $('group').value=categorySelection.tv;$('group').disabled=false;
+}
+function renderTvGroups(list){
+  const sections=new Map();
+  list.forEach(item=>{const group=tvGroups(item)[0];if(!sections.has(group))sections.set(group,[]);sections.get(group).push(item)});
+  [...sections.keys()].sort((a,b)=>a.localeCompare(b,'es')).forEach(name=>{
+    const section=document.createElement('section');section.className='tv-category-section';
+    const heading=document.createElement('div');heading.className='tv-category-heading';
+    const title=document.createElement('h2');title.textContent=name;
+    const count=document.createElement('span');count.className='muted';count.textContent=sections.get(name).length+' canales';heading.append(title,count);
+    const grid=document.createElement('div');grid.className='tv-list';grid.setAttribute('aria-label',name);
+    sections.get(name).forEach(item=>grid.append(tvCard(item)));section.append(heading,grid);$('items').append(section);
+  });
+}
 function render(append=false){
   if(view==='home'){renderShelves();return}
   const query=$('search').value.trim().toLocaleLowerCase();let list;
   if(view==='favorites')list=favoriteItems.filter(item=>favoriteFilter==='all'||item.kind===favoriteFilter);
   else if(globalSearch())list=searchItems;
   else list=view==='anime'?animeItems:items.filter(item=>item.kind===kind);
-  if(view==='tv'&&query)list=list.filter(item=>(item.name+' '+(item.number||'')+' '+(item.genres||'')).toLocaleLowerCase().includes(query));
+  if(view==='tv'){
+    fillTvCategories();
+    if(categorySelection.tv)list=list.filter(item=>tvGroups(item).includes(categorySelection.tv));
+    if(query)list=list.filter(item=>(item.name+' '+(item.number||'')+' '+tvGroups(item).join(' ')).toLocaleLowerCase().includes(query));
+  }
   list=groupSeries(list);
-  $('items').className=view==='tv'?'tv-list':'poster-grid';const existing=append?$('items').children.length:0;if(!append)$('items').replaceChildren();
+  $('items').className=view==='tv'?'tv-sections':'poster-grid';const existing=append?$('items').children.length:0;if(!append)$('items').replaceChildren();
   if(view==='favorites')$('count').textContent=favoriteItems.length+' '+(favoriteItems.length===1?'favorito guardado':'favoritos guardados')+' en este PC';
   else if(globalSearch())$('count').textContent=searchLoading?'Buscando en todo el catálogo…':searchTotal.toLocaleString('es-CL')+' resultados · películas y series';
   else $('count').textContent=view==='tv'?list.length.toLocaleString('es-CL')+' canales':(catalogTotals[kind]||list.length).toLocaleString('es-CL')+' títulos';
-  if(!list.length){if(searchLoading||catalogLoading){const pending=document.createElement('p');pending.className='catalog-loading';pending.textContent='Buscando tu próxima historia…';$('items').append(pending)}else if(view==='favorites')$('items').append(emptyState(favoriteItems.length?'No hay favoritos en esta sección':'Tu próxima historia empieza aquí',favoriteItems.length?'Prueba otro filtro para ver tus títulos guardados.':'Pulsa el corazón de una película, serie o canal para guardarlo en Mi lista.','heart'));else if(globalSearch()&&query.length<2)$('items').append(emptyState('¿Qué te gustaría ver?','Escribe al menos dos caracteres para buscar en todo el catálogo.'));else $('items').append(emptyState('No encontramos resultados','Prueba con otro título o vuelve a explorar la biblioteca.'))}
+  if(!list.length&&view==='tv'&&categorySelection.tv==='Adultos +18')$('items').append(emptyState('Sin canales +18 disponibles','El catálogo que entrega tu sesión no contiene canales en esta categoría.'));
+  else if(!list.length){if(searchLoading||catalogLoading){const pending=document.createElement('p');pending.className='catalog-loading';pending.textContent='Buscando tu próxima historia…';$('items').append(pending)}else if(view==='favorites')$('items').append(emptyState(favoriteItems.length?'No hay favoritos en esta sección':'Tu próxima historia empieza aquí',favoriteItems.length?'Prueba otro filtro para ver tus títulos guardados.':'Pulsa el corazón de una película, serie o canal para guardarlo en Mi lista.','heart'));else if(globalSearch()&&query.length<2)$('items').append(emptyState('¿Qué te gustaría ver?','Escribe al menos dos caracteres para buscar en todo el catálogo.'));else $('items').append(emptyState('No encontramos resultados','Prueba con otro título o vuelve a explorar la biblioteca.'))}
+  else if(view==='tv')renderTvGroups(list);
   else list.slice(existing).forEach(item=>$('items').append(item.kind==='tv'?tvCard(item):mediaCard(item)));
   syncFavoriteControls();updateInfiniteStatus();
 }
@@ -84,7 +113,7 @@ function setView(next){
   const headings={movies:'Películas',series:'Series',anime:'Anime',tv:'TV en vivo',favorites:'Mi lista',search:'Resultados de búsqueda'};
   $('catalogTitle').textContent=headings[next]||'';$('catalogEyebrow').textContent=next==='favorites'?'TUS HISTORIAS, SIEMPRE A MANO':next==='tv'?'LO QUE ESTÁ PASANDO AHORA':'EXPLORA LA BIBLIOTECA';
   document.querySelectorAll('[data-view]').forEach(button=>{if(button.dataset.view===next)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current')});
-  $('search').placeholder=next==='tv'?'Buscar canal…':'Buscar películas y series…';$('group').hidden=!['movies','series','anime'].includes(next);$('categoryLabel').hidden=$('group').hidden;
+  $('search').placeholder=next==='tv'?'Buscar canal o categoría…':'Buscar películas y series…';$('group').hidden=!['movies','series','anime','tv'].includes(next);$('categoryLabel').hidden=$('group').hidden;
 }
 function section(next){
   clearTimeout(searchTimer);searchController?.abort();++catalogRequest;moreAvailable=false;infiniteError=false;catalogLoading=false;searchLoading=false;searchItems=[];searchTotal=0;$('search').value='';$('portalState').textContent='';
@@ -198,7 +227,7 @@ async function loadCategories(target,firstPage){
   }catch{if(ticket===categoryTicket&&view===target)notify('No pudimos cargar las categorías. Puedes explorar todos los títulos.');}
   finally{if(ticket===categoryTicket)$('group').disabled=false;}
 }
-$('group').onchange=()=>{if(!['movies','series','anime'].includes(view))return;categorySelection[view]=$('group').value;catalogPages[view]=1;loadPage(view,1);};
+$('group').onchange=()=>{if(view==='tv'){categorySelection.tv=$('group').value;render();return;}if(!['movies','series','anime'].includes(view))return;categorySelection[view]=$('group').value;catalogPages[view]=1;loadPage(view,1);};
 async function refreshFeatured(){
   if(featuredTask)return featuredTask;
   featuredTask=(async()=>{try{

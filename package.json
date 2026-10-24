@@ -1,0 +1,10 @@
+{
+  "name": "xppc-development",
+  "private": true,
+  "scripts": {
+    "test": "node work/test_tv_category_ui.cjs"
+  },
+  "devDependencies": {
+    "jsdom": "29.1.1"
+  }
+}
