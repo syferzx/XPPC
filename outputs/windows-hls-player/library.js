@@ -215,6 +215,7 @@ function openSeason(item){prepareSelection(item);$('seasonBar').hidden=false;$('
 $('seasonSelect').onchange=()=>{const item=seasonCollection?.find(entry=>entry.id===$('seasonSelect').value);if(item)openSeason(item);};
 
 function stopPlayer(){
+  stopVodReadAhead();
   seriesOpening++;seasonCollection=null;$('seasonBar').hidden=true;$('recommendationsSection').hidden=true;$('recommendationsItems').replaceChildren();
   selectionRevision++;cancelVodPreparation();setPlayerLoading(false);savePlaybackProgress(video.ended);current=null;selected=null;if(hls){hls.destroy();hls=null}video.pause();video.removeAttribute('src');setContentArtwork({});video.load();resetTracks();error.textContent='';
 }

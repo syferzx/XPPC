@@ -187,13 +187,16 @@ class Handler(BaseHTTPRequestHandler):
     (ROOT/'work/portable-request.private.log').write_text(traceback.format_exc(),encoding='utf8')
    return self.send(502,json.dumps({'error':'No se pudo obtener el flujo. Revisa la sesión y vuelve a intentar.'}).encode())
  def do_POST(self):
-  if not self.valid_host() or self.path not in ['/api/client-metrics','/api/vod/play','/api/favorites','/api/progress']:return self.send(404)
+  if not self.valid_host() or self.path not in ['/api/client-metrics','/api/vod/play','/api/vod/buffer/stop','/api/favorites','/api/progress']:return self.send(404)
   origin=self.headers.get('Origin')
   if origin and origin!='http://'+self.headers.get('Host'):return self.send(403)
   try:
    n=int(self.headers.get('Content-Length','0'))
    if not 0<n<=2048:return self.send(400)
-   data=json.loads(self.rfile.read(n));allowed=['currentTime','readyState','width','height','frames','droppedFrames','paused','error','bufferStart','bufferEnd','liveSync','lastFragSN','lastFragStart','lastFragEnd','recoveries','hlsFatal','compatibilityMode']
+   data=json.loads(self.rfile.read(n));allowed=['currentTime','readyState','width','height','frames','droppedFrames','paused','error','bufferStart','bufferEnd','liveSync','lastFragSN','lastFragStart','lastFragEnd','recoveries','hlsFatal','compatibilityMode','bufferAhead','seeking','isWaiting','waitingCount','lastWaitingUnix','lastWaitingTime','lastWaitingAhead','lastWaitingDuration','hlsErrorUnix','hlsErrorCount']
+   if self.path=='/api/vod/buffer/stop':
+    if not re.fullmatch(r'[a-f0-9]{24}',str(data.get('key',''))):return self.send(400)
+    vod.stop_buffer(data['key']);return self.send(200,b'{"stopped":true}')
    if self.path=='/api/progress':
     try:return self.send(200,json.dumps(progress.save(data)).encode())
     except (ValueError,TypeError):return self.send(400)
@@ -232,4 +235,4 @@ if __name__=='__main__':
  portal.start()
  try:server.serve_forever()
  except KeyboardInterrupt:pass
- finally:portal.stop.set();server.server_close()
+ finally:portal.stop.set();vod.buffer.close();server.server_close()

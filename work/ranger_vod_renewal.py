@@ -58,14 +58,18 @@ class RenewingVodSource:
                 self.transport=candidate;self.renewals+=1
             return self.transport
     def fetch(self,**kwargs):
-        with self.lock:
-            transport=self.current()
-            def read(source):
-                for attempt in range(3):
-                    try:return source.fetch(source.url,**kwargs)
-                    except (TimeoutError,ConnectionError,http.client.RemoteDisconnected):
-                        if attempt==2:raise
+        transport=self.current()
+        def read(source):
+            for attempt in range(3):
+                try:return source.fetch(source.url,**kwargs)
+                except (TimeoutError,ConnectionError,http.client.RemoteDisconnected):
+                    if attempt==2:raise
+        # Each request owns its HTTP connection; only signing and renewal are locked.
+        result=read(transport)
+        if result['status'] in [401,403]:
+            with self.lock:
+                # Concurrent rejections of the same generation renew just once.
+                if self.transport is transport:self.current(force=True)
+                transport=self.current()
             result=read(transport)
-            if result['status'] in [401,403]:
-                transport=self.current(force=True);result=read(transport)
-            return result
+        return result

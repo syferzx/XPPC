@@ -14,12 +14,13 @@ La aplicación se abre en tu navegador. No necesitas instalar Python, FFmpeg ni 
 
 Esta variante inicia directamente el motor incluido y no contiene el lanzador `XuperPC.exe` de PyInstaller. Esto no certifica la seguridad de las dependencias incluidas.
 
-## Novedades de la versión 0.1.2
+## Novedades de la versión 0.1.3
 
-- TV en vivo con reproductor integrado a la derecha y categorías desplegables a la izquierda.
-- Hasta dos columnas de canales, con la categoría de adultos al final y cerrada inicialmente.
-- Reproducción automática al entrar, inicialmente sin sonido, y regreso al último canal visto durante la sesión.
-- Encabezado compacto y ancho y margen superior uniformes entre secciones.
+- Hasta tres descargas simultáneas para películas y series.
+- Búfer con objetivo de tres minutos e indicador de segundos disponibles.
+- Mayor tolerancia a descargas lentas y renovación sincronizada.
+- Continuación desde el minuto guardado con precarga previa.
+- Agrupación de fragmentos pequeños para evitar bloqueos como el corregido en La Brea T3.
 
 Al actualizar, cierra la versión anterior y conserva tu carpeta `Datos`: contiene tu sesión, favoritos y progreso. No la compartas con otras personas. El ZIP publicado se prepara sin datos personales.
 

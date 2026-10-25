@@ -7,15 +7,29 @@ from ranger_vod_renewal import VerifiedVodResolver,RenewingVodSource,HOST,IP
 from ranger_vod_index import parse_idxg,hls_playlist
 from media_tracks import audio_tracks,select_audio,subtitle_tracks,fetch_subtitle,compatible_segment
 from access_profile import media_headers,vod_route
+from segment_buffer import SegmentBuffer
 
 class VodService:
     def __init__(self,root,portal):
         self.root=Path(root);self.portal=portal;self.lock=threading.RLock()
         self.sessions=collections.OrderedDict();self.cache=collections.OrderedDict()
+        self.buffer=SegmentBuffer();self.generation=0
         self.state={'source_lookups':0,'source_renewals':0,'segment_requests':0,'segment_bytes':0,'last_error':None}
     def status(self):
-        with self.lock:return dict(self.state)
+        with self.lock:state=dict(self.state)
+        state['buffer']=self.buffer.status()
+        return state
+    def stop_buffer(self,key=None):
+        with self.lock:
+            if key is not None:
+                if key in self.sessions:self.sessions[key]['stopped']=True
+            else:
+                for lease in self.sessions.values():lease['stopped']=True
+        with self.buffer.lock:
+            if key is None or self.buffer.active_key==key:self.buffer.reset()
     def start(self,item_id,episode=None):
+        with self.lock:self.generation+=1;generation=self.generation
+        self.stop_buffer()
         with self.portal.lock:
             kind,asset=self.portal.assets[item_id]
             detail=self.portal.request('/api/portalCore/v4/getItemData',{'contentId':asset['contentId'],'type':asset.get('type','0' if kind=='series' else '1'),'sortType':'0','language':'es','macAddr':'02:00:00:00:00:00'})['assetData']
@@ -52,12 +66,13 @@ class VodService:
         index=parse_idxg(result['body']);lease['index']=index
         key=uuid.uuid4().hex[:24]
         with self.lock:
+            if generation!=self.generation:raise ValueError('Playback replaced during preparation')
             self.sessions[key]=lease
             while len(self.sessions)>8:
                 dropped,_=self.sessions.popitem(last=False)
                 for entry in list(self.cache):
                     if entry[0]==dropped:del self.cache[entry]
-        try:lease['audio_tracks']=audio_tracks(self.root,self.segment(key,0))
+        try:lease['audio_tracks']=audio_tracks(self.root,self.segment(key,0,prefetch=False))
         except Exception:lease['audio_tracks']=[]
         return {'url':'/vod/'+key+'/index.m3u8','duration_seconds':index['duration_ms']/1000,'width':index['width'],'height':index['height'],'episode':program.get('seriesNumber'),'renewal_enabled':True,
             'audio_tracks':lease['audio_tracks'],'subtitle_tracks':[{'index':i,'language':s['language'],'url':'/vod/'+key+'/subtitles/'+str(i)+'.vtt'} for i,s in enumerate(lease.get('subtitles',[]))]}
@@ -96,7 +111,7 @@ class VodService:
             cache=lease.setdefault('subtitle_cache',{})
             if number not in cache:cache[number]=fetch_subtitle(tracks[number])
             return cache[number]
-    def segment(self,key,number,audio=None):
+    def segment(self,key,number,audio=None,prefetch=True):
         if audio is not None:
             with self.lock:
                 lease=self.sessions[key]
@@ -109,20 +124,21 @@ class VodService:
                     while sum(map(len,self.cache.values()))>32*1024*1024:self.cache.popitem(last=False)
                 return body
         with self.lock:
-            if (key,number) in self.cache:self.cache.move_to_end((key,number));return self.cache[(key,number)]
             lease=self.sessions[key]
-        with lease['lock']:
-            index=lease['index'];segments=index['segments']
-            if not 0<=number<len(segments):raise ValueError('Unknown segment')
-            s=segments[number];size=s['length'];start=s['offset'];end=start+size-1
-            if not 0<size<=16*1024*1024:raise ValueError('Invalid segment size')
-            result=lease['source'].fetch(limit=size,byte_range='bytes='+str(start)+'-'+str(end))
-            headers={k.lower():v for k,v in result['headers'].items()};span=headers.get('content-range','')
-            expected='bytes '+str(start)+'-'+str(end)+'/'+str(index['size'])
-            if result['status']!=206 or span!=expected or len(result['body'])!=size:raise ValueError('Video range rejected')
-            body=result['body']
-            with self.lock:
-                self.cache[(key,number)]=body
-                while sum(map(len,self.cache.values()))>32*1024*1024:self.cache.popitem(last=False)
-                self.state['segment_requests']+=1;self.state['segment_bytes']+=len(body);self.state['last_error']=None
-            return body
+            if lease.get('stopped'):raise ValueError('Playback stopped')
+        return self.buffer.get(key,number,lease['index']['segments'],
+                               lambda n:self._download(lease,n),prefetch=prefetch)
+    def _download(self,lease,number):
+        # Range validation remains mandatory for foreground and read-ahead alike.
+        index=lease['index'];segments=index['segments']
+        if not 0<=number<len(segments):raise ValueError('Unknown segment')
+        s=segments[number];size=s['length'];start=s['offset'];end=start+size-1
+        if not 0<size<=16*1024*1024:raise ValueError('Invalid segment size')
+        result=lease['source'].fetch(limit=size,byte_range='bytes='+str(start)+'-'+str(end))
+        headers={k.lower():v for k,v in result['headers'].items()};span=headers.get('content-range','')
+        expected='bytes '+str(start)+'-'+str(end)+'/'+str(index['size'])
+        if result['status']!=206 or span!=expected or len(result['body'])!=size:raise ValueError('Video range rejected')
+        body=result['body']
+        with self.lock:
+            self.state['segment_requests']+=1;self.state['segment_bytes']+=len(body);self.state['last_error']=None
+        return body

@@ -2,7 +2,7 @@
   "name": "xppc-development",
   "private": true,
   "scripts": {
-    "test": "node work/test_tv_category_ui.cjs && node work/test_live_tv_layout.cjs"
+    "test": "node work/test_tv_category_ui.cjs && node work/test_live_tv_layout.cjs && node work/test_vod_playback_policy.cjs && node work/test_vod_resume.cjs && node work/test_library_redesign.cjs"
   },
   "devDependencies": {
     "jsdom": "29.1.1"

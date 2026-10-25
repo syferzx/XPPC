@@ -1,6 +1,29 @@
 """Portable, bounded parser for Ranger's observed version-0 TS IDXG index."""
 import math,re,struct
 
+def playback_segments(segments, target_ms=4000, max_bytes=8*1024*1024):
+    """Coalesce contiguous index ranges so tiny GOP entries do not stall HLS.
+
+    Keep every byte and original timeline; never merge across a byte/time gap.
+    A large original range is retained intact for the existing download validator.
+    """
+    result=[];pending=None
+    for segment in segments:
+        segment=dict(segment)
+        contiguous=pending is not None and (pending['offset']+pending['length']==segment['offset'] and pending['time_ms']+pending['duration_ms']==segment['time_ms'])
+        if pending is not None and (not contiguous or pending['duration_ms']>=target_ms or pending['length']+segment['length']>max_bytes):
+            result.append(pending);pending=None
+        if pending is None:pending=segment
+        else:
+            pending['length']+=segment['length'];pending['duration_ms']+=segment['duration_ms']
+    if pending is not None:
+        # Avoid an extremely short tail when it can fit in the preceding block.
+        if result and pending['duration_ms']<1000 and result[-1]['length']+pending['length']<=max_bytes and result[-1]['offset']+result[-1]['length']==pending['offset'] and result[-1]['time_ms']+result[-1]['duration_ms']==pending['time_ms']:
+            result[-1]['length']+=pending['length'];result[-1]['duration_ms']+=pending['duration_ms']
+        else:result.append(pending)
+    return result
+
+
 def parse_idxg(body):
     if not isinstance(body,bytes) or not 64<=len(body)<=4*1024*1024:raise ValueError('IDXG outside bounds')
     if body[4:8]!=b'idxg' or struct.unpack_from('>I',body)[0]!=len(body) or body[8:12]!=bytes(4):raise ValueError('Unsupported IDXG box/version')
@@ -21,7 +44,7 @@ def parse_idxg(body):
         end_ms,end=points[i+1] if i+1<count else (duration,total)
         segments.append({'offset':offset,'length':end-offset,'time_ms':time_ms,'duration_ms':end_ms-time_ms})
     return {'filename':name,'size':total,'duration_ms':duration,'video_codec':body[base+18:base+22].rstrip(b'\0').decode('ascii'),
-        'width':struct.unpack_from('>H',body,base+26)[0],'height':struct.unpack_from('>H',body,base+28)[0],'segments':segments}
+        'width':struct.unpack_from('>H',body,base+26)[0],'height':struct.unpack_from('>H',body,base+28)[0],'segments':playback_segments(segments)}
 
 def hls_playlist(index,prefix):
     if not re.fullmatch(r'/vod/[a-f0-9]{20,32}(/audio/\d+)?/segment',prefix):raise ValueError('Expected opaque local VOD segment route')

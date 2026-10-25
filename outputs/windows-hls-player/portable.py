@@ -135,7 +135,9 @@ def main():
         launch_result('ready',os.getpid())
         serving.join()
     finally:
-        if server.application:server.application.portal.stop.set()
+        if server.application:
+            server.application.portal.stop.set()
+            server.application.vod.buffer.close()
         server.shutdown()
         server.server_close()
     return 0
