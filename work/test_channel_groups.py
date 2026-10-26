@@ -22,4 +22,13 @@ class ChannelGroupsTests(unittest.TestCase):
     def test_tags_are_not_guessed_as_access_or_category(self):
         self.assertEqual(channel_groups({'name':'Canal desconocido','tags':'x','restricted':'0'}),['General y variedades'])
 
+    def test_247_names_override_general_and_genre_groups(self):
+        for name in ('ALF 24/7 HD','24/7 Art Attack','Peliculas 24 / 7','Series 24x7','Canal 24×7','Anime 24-7'):
+            self.assertEqual(channel_groups({'name':name,'categoryName':'Cine y series'}),['24/7'])
+        self.assertEqual(channel_groups({'name':'HBO 24/7'}),['24/7','Premium'])
+        self.assertNotEqual(channel_groups({'name':'Canal 124/70'})[0],'24/7')
+    def test_247_adults_stay_in_adult_category(self):
+        self.assertEqual(channel_groups({'name':'Canal 24/7','isAdult':True}),['Adultos +18'])
+        self.assertEqual(channel_groups({'name':'Canal 24/7','categoryName':'Adultos +18'}),['Adultos +18'])
+
 if __name__=='__main__':unittest.main()

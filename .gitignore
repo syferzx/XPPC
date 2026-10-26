@@ -21,3 +21,16 @@ dist/
 *.zip
 
 node_modules/
+
+**/Descargas/
+**/download-jobs/
+**/work/downloads.json
+!/work/test_series_groups.py
+!/work/test_downloads.py
+!/work/test_channel_groups.py
+!/work/test_download_ui.cjs
+!/work/test_custom_player_controls.cjs
+!/work/test_media_preview.cjs
+!/work/test_catalog_sort.cjs
+!/work/test_live_tv_layout.cjs
+!/work/test_library_redesign.cjs

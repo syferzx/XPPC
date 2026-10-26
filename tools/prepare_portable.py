@@ -23,7 +23,7 @@ def main():
     for name in ('Engine','_internal','XuperPC.exe'):copy(base/name,out/name)
     for file in sources:
         if not file.name.startswith('test_') and file.name!='bootstrap.py':copy(file,out/'Engine/app'/file.name)
-    for name in ('index.html','app.css','player.js','library.js','vendor','assets'):copy(app/name,out/'Engine/app'/name)
+    for name in ('index.html','app.css','player.js','library.js','downloads.js','vendor','assets'):copy(app/name,out/'Engine/app'/name)
     for name in ('app-bootstrap.json','rutas-portal.json'):copy(ROOT/'outputs'/name,out/'Engine/outputs'/name)
     copy(app/'PORTABLE.txt',out/'LEEME.txt')
     copy(app/'Iniciar.bat',out/'Iniciar.bat')

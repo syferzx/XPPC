@@ -67,12 +67,29 @@ def series_identity(name):
     return unicodedata.normalize('NFC',title).casefold(),title,int(match[1]) if match else None
 
 
+def series_group_identity(asset):
+    title=series_identity(asset.get('name',''))[0]
+    country=' '.join(str(asset.get('originalCountry') or '').split()).casefold()
+    return title,country
+
+
+def series_group_token(asset):
+    return hashlib.sha256(('series-group:'+repr(series_group_identity(asset))).encode()).hexdigest()[:20]
+
+
+def public_year(value):
+    match=re.match(r'^(\d{4})(?:[-/]|$)',str(value or ''))
+    return int(match[1]) if match and 1880<=int(match[1])<=2100 else None
+
+
 def public_item(asset, kind):
     code = str(asset['contentId'])
     return {'id': hashlib.sha256((kind + ':' + code).encode()).hexdigest()[:20],
             'name': asset.get('name', 'Sin título'), 'kind': kind, 'groups': [],
             'description': asset.get('description', ''), 'genres': asset.get('tags', ''),
             'cast': asset.get('actorDisplay', ''), 'score': asset.get('score'),
+            'year':public_year(asset.get('releaseTime')),'series_country':str(asset.get('originalCountry') or '')[:120] if kind=='series' else '',
+            'series_group_key':series_group_token(asset) if kind=='series' else None,
             'episodes': asset.get('volumnCount', 0), 'duration': asset.get('duration', ''),
             'programType': asset.get('programType', ''), 'playable': False,**artwork(asset)}
 
@@ -278,8 +295,7 @@ class PortalService:
                 item=public_item(asset,kind);self.assets[item['id']]=(kind,asset)
                 key=item['id']
                 if kind=='series':
-                    base=re.sub(r'\s+(?:T|Temp\.?|Temporada|Season)\s*\d+\s*$','',item['name'],flags=re.I)
-                    key=' '.join(base.split()).casefold()
+                    key=series_group_identity(asset)
                 if key not in seen:seen.add(key);items.append(item)
             result={'items':items,'kind':kind,'source':'provider_home','source_column':str(row.get('name','')),
                     'selection_label':'Agregados recientemente',
@@ -326,8 +342,8 @@ class PortalService:
                 item=public_item(entry,entry_kind)
                 self.assets[item['id']]=(entry_kind,entry)
                 if item['id']==item_id:continue
-                if kind=='series' and entry_kind=='series' and series_identity(item['name'])[0]==series_identity(asset.get('name',''))[0]:continue
-                identity=series_identity(item['name'])[0] if entry_kind=='series' else item['id']
+                if kind=='series' and entry_kind=='series' and series_group_identity(entry)==series_group_identity(asset):continue
+                identity=series_group_identity(entry) if entry_kind=='series' else item['id']
                 if identity in seen:continue
                 seen.add(identity);result.append(item)
             response={'items':result,'source':'provider','fetched_unix':time.time()}
@@ -339,12 +355,15 @@ class PortalService:
             kind,asset=self.assets[item_id]
             if kind!='series':raise ValueError('Not a series')
             key,title,_=series_identity(asset.get('name',''))
-            cached=self.series_groups.get(key)
+            cache_key=item_id
+            cached=self.series_groups.get(cache_key)
             if cached and time.time()-cached['fetched_unix']<300:
                 result=dict(cached)
             else:
                 complete=True
                 detail=self.request('/api/portalCore/v4/getItemData',{'contentId':asset['contentId'],'type':asset.get('type','0'),'sortType':'0','language':'es','macAddr':'02:00:00:00:00:00'}).get('assetData',{})
+                for field in ('originalCountry','actorDisplay','releaseTime'):
+                    if detail.get(field):asset[field]=detail[field]
                 links=detail.get('sameSeasonSeriesList') or []
                 linked=[];linked_numbers={}
                 for link in links[:100]:
@@ -353,7 +372,7 @@ class PortalService:
                     identifier=hashlib.sha256(('series:'+code).encode()).hexdigest()[:20]
                     if identifier not in self.assets:
                         self.assets[identifier]=('series',{'contentId':code,'name':title+' T'+str(number),'type':'0','programType':'teleplay',
-                            'posterList':detail.get('posterList',asset.get('posterList',[])),'description':detail.get('description',''),'tags':detail.get('tags','')})
+                            'posterList':detail.get('posterList',asset.get('posterList',[])),'description':detail.get('description',''),'tags':detail.get('tags',''),'originalCountry':asset.get('originalCountry',''),'actorDisplay':asset.get('actorDisplay','')})
                     linked.append(identifier)
                     linked_numbers[identifier]=int(number)
                 if not linked and 2<=len(title)<=120:
@@ -366,11 +385,12 @@ class PortalService:
                 for identifier,(entry_kind,entry) in list(self.assets.items()):
                     if entry_kind!='series':continue
                     entry_key,_,number=series_identity(entry.get('name',''))
-                    if entry_key==key or identifier in linked:
+                    matches_group=(identifier in linked or identifier==item_id) if linked else (entry_key==key and series_group_identity(entry)==series_group_identity(asset))
+                    if matches_group:
                         item=public_item(entry,'series');item['season_number']=linked_numbers.get(identifier,number);matches.append(item)
                 matches.sort(key=lambda item:(item['season_number'] is None,item['season_number'] or 0,item['name'],item['id']))
-                result={'title':title,'items':matches,'complete':complete,'fetched_unix':time.time()}
-                self.series_groups[key]=dict(result)
+                result={'title':title,'country':asset.get('originalCountry',''),'items':matches,'complete':complete,'fetched_unix':time.time()}
+                self.series_groups[cache_key]=dict(result)
             # Read progress fresh, so reopening uses the last watched season.
             from progress import Progress
             try:marks=Progress(self.root).read()

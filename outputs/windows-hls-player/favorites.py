@@ -26,9 +26,14 @@ class Favorites:
                 # Detail and play can resolve this item after a process restart,
                 # without paging through the catalog to repopulate assets.
                 asset={'contentId':code,'type':row.get('type','0' if kind=='series' else '1'),'name':item['name'],
-                       'description':item['description'],'tags':item['genres'],'posterUrl':item['poster_url'],
+                       'description':item['description'],'tags':item['genres'],'posterUrl':item['poster_url'],'originalCountry':row.get('series_country',''),'score':row.get('score'),'duration':row.get('duration',''),'actorDisplay':row.get('cast',''),'volumnCount':row.get('episodes',0),'releaseTime':str(row.get('year') or ''),
                        'posterList':[{'fileType':typ,'fileUrl':url} for typ,url in [('icon',item['poster_url']),('poster',item['backdrop_url'])] if url]}
-                with self.portal.lock:self.portal.assets.setdefault(identifier,(kind,asset))
+                with self.portal.lock:
+                    self.portal.assets.setdefault(identifier,(kind,asset))
+                    from portal import public_item
+                    metadata=public_item(self.portal.assets[identifier][1],kind)
+                for field in ('series_country','series_group_key','year','score','duration','cast','episodes'):item[field]=metadata.get(field)
+                if kind=='series' and not item.get('series_country'):item['series_group_key']='item:'+identifier
             items.append(item)
         return items
     def list(self):
@@ -52,7 +57,7 @@ class Favorites:
                     kind='tv';code=str(channel['channelCode']);typ=''
                     item={'name':channel.get('name','Canal'),'number':channel.get('channelNumber',''),**artwork(channel)}
                 # Explicit metadata allowlist: no source URLs, tokens or licenses.
-                row={key:item.get(key) for key in ('name','genres','description','poster_url','backdrop_url','number')}
+                row={key:item.get(key) for key in ('name','genres','description','poster_url','backdrop_url','number','series_country','year','score','duration','cast','episodes')}
                 for key,limit in [('name',240),('genres',300),('description',3000),('number',20)]:row[key]=str(row.get(key) or '')[:limit]
                 row.update(id=identifier,kind=kind,content_id=code,type=typ,saved_unix=time.time());rows.insert(0,row)
             self.file.parent.mkdir(parents=True,exist_ok=True)

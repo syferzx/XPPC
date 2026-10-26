@@ -14,7 +14,8 @@ def channel_groups(channel):
     adult=any(enabled(channel.get(k)) for k in ('isAdult','adult')) or bool(re.search(r'(?:^|\W)(?:\+18|18\+|adultos|xxx|playboy|venus|penthouse|hustler|sextreme|sexy\s*hot|private\s*tv)(?:\W|$)',name))
     # "Adult Swim" is an entertainment brand, not an adult-content flag.
     premium=any(enabled(channel.get(k)) for k in ('isPremium','premium','isVip')) or bool(re.search(r'\b(?:premium|hbo|cinemax|starz)\b',name))
-    if adult:primary='Adultos +18'
+    if adult or normalized(explicit) in ('adultos +18','adultos','18+','+18'):primary='Adultos +18'
+    elif re.search(r'(?<!\d)24\s*[/x×-]\s*7(?!\d)',name):primary='24/7'
     elif explicit:primary=explicit[:80]
     elif re.search(r'\b(?:espn|fox sports|tnt sports|sports?|deport\w*|tyc|tdn|tudn|dazn|dsports|directv sports|ecdf|cdf|cdo|nba|nfl|mlb|nhl|f1|golf|tennis|ufc|wwe|bein|win\s*\+|liga\w*)\b',name):primary='Deportes'
     elif re.search(r'\b(?:noticias|news|cnn|bbc world|france\s*24|dw|euronews|ntn\s*24|a24|c5n|tn|24\s*horas|milenio)\b',name):primary='Noticias'

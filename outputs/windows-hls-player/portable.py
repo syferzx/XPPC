@@ -137,6 +137,7 @@ def main():
     finally:
         if server.application:
             server.application.portal.stop.set()
+            server.application.downloads.close()
             server.application.vod.buffer.close()
         server.shutdown()
         server.server_close()

@@ -12,10 +12,12 @@ from vod import VodService
 from tv import TvService
 from favorites import Favorites
 from progress import Progress
+from downloads import DownloadService,DownloadBusy
 
 lock=threading.Lock();resources=collections.OrderedDict();cache=collections.OrderedDict()
 portal=PortalService(ROOT)
 vod=VodService(ROOT,portal)
+downloads=DownloadService(ROOT,portal)
 tv=TvService(ROOT,portal)
 favorites=Favorites(ROOT,portal,tv)
 progress=Progress(ROOT)
@@ -86,8 +88,16 @@ class Handler(BaseHTTPRequestHandler):
   try:
    if path=='/':return self.send(200,(APP/'index.html').read_bytes(),'text/html; charset=utf-8')
    if path=='/api/launcher/status':return self.send(200,json.dumps({'application':'XuperPC','pid':os.getpid(),'instance':getattr(self.server,'launcher_id',None)}).encode())
-   if path in ('/app.css','/player.js','/library.js'):
+   if path in ('/app.css','/player.js','/library.js','/downloads.js'):
     return self.send(200,(APP/path[1:]).read_bytes(),'text/css; charset=utf-8' if path.endswith('.css') else 'application/javascript; charset=utf-8')
+   if path=='/api/downloads':return self.send(200,json.dumps(downloads.listing(),ensure_ascii=False).encode('utf8'))
+   m=re.fullmatch(r'/api/downloads/([a-f0-9]{32})(/(file|subtitle))?',path)
+   if m:
+    try:
+     if m[3]:return self.send_export(downloads.file(m[1],m[3]=='subtitle'))
+     return self.send(200,json.dumps(downloads.status(m[1]),ensure_ascii=False).encode('utf8'))
+    except KeyError:return self.send(404)
+    except ValueError:return self.send(409)
    if path=='/api/favorites':return self.send(200,json.dumps(favorites.list(),ensure_ascii=False).encode('utf8'))
    if path.startswith('/api/progress/'):
     try:return self.send(200,json.dumps(progress.get(path.rsplit('/',1)[-1])).encode())
@@ -186,14 +196,56 @@ class Handler(BaseHTTPRequestHandler):
     import traceback
     (ROOT/'work/portable-request.private.log').write_text(traceback.format_exc(),encoding='utf8')
    return self.send(502,json.dumps({'error':'No se pudo obtener el flujo. Revisa la sesión y vuelve a intentar.'}).encode())
+ def send_export(self,path):
+  size=path.stat().st_size;start=0;end=size-1;partial=False
+  value=self.headers.get('Range')
+  if value:
+   match=re.fullmatch(r'bytes=(\d*)-(\d*)',value)
+   if not match or not any(match.groups()):return self.send(416)
+   if match[1]:start=int(match[1]);end=min(end,int(match[2])) if match[2] else end
+   else:start=max(0,size-int(match[2]))
+   if start>end or start>=size:
+    self.send_response(416);self.send_header('Content-Range','bytes */'+str(size));self.send_header('Content-Length','0');self.end_headers();return
+   partial=True
+  try:
+   self.send_response(206 if partial else 200);self.send_header('Content-Type','video/mp4' if path.suffix=='.mp4' else 'application/x-subrip; charset=utf-8')
+   self.send_header('Content-Disposition',"attachment; filename=download"+path.suffix+"; filename*=UTF-8''"+urllib.parse.quote(path.name,safe=''))
+   self.send_header('Accept-Ranges','bytes');self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff');self.send_header('Content-Length',str(end-start+1))
+   if partial:self.send_header('Content-Range','bytes '+str(start)+'-'+str(end)+'/'+str(size))
+   self.end_headers()
+   with path.open('rb') as source:
+    source.seek(start);remaining=end-start+1
+    while remaining:
+     chunk=source.read(min(1024*1024,remaining))
+     if not chunk:break
+     self.wfile.write(chunk);remaining-=len(chunk)
+  except ConnectionError:self.close_connection=True
  def do_POST(self):
-  if not self.valid_host() or self.path not in ['/api/client-metrics','/api/vod/play','/api/vod/buffer/stop','/api/favorites','/api/progress']:return self.send(404)
+  if not self.valid_host() or self.path not in ['/api/client-metrics','/api/vod/play','/api/vod/buffer/stop','/api/favorites','/api/progress','/api/downloads/prepare','/api/downloads/start','/api/downloads/cancel','/api/downloads/open-folder','/api/downloads/set-folder','/api/downloads/choose-folder','/api/downloads/forget','/api/downloads/retry']:return self.send(404)
   origin=self.headers.get('Origin')
   if origin and origin!='http://'+self.headers.get('Host'):return self.send(403)
   try:
    n=int(self.headers.get('Content-Length','0'))
    if not 0<n<=2048:return self.send(400)
-   data=json.loads(self.rfile.read(n));allowed=['currentTime','readyState','width','height','frames','droppedFrames','paused','error','bufferStart','bufferEnd','liveSync','lastFragSN','lastFragStart','lastFragEnd','recoveries','hlsFatal','compatibilityMode','bufferAhead','seeking','isWaiting','waitingCount','lastWaitingUnix','lastWaitingTime','lastWaitingAhead','lastWaitingDuration','hlsErrorUnix','hlsErrorCount']
+   data=json.loads(self.rfile.read(n))
+   if not isinstance(data,dict):return self.send(400)
+   allowed=['currentTime','readyState','width','height','frames','droppedFrames','paused','error','bufferStart','bufferEnd','liveSync','lastFragSN','lastFragStart','lastFragEnd','recoveries','hlsFatal','compatibilityMode','bufferAhead','seeking','isWaiting','waitingCount','lastWaitingUnix','lastWaitingTime','lastWaitingAhead','lastWaitingDuration','hlsErrorUnix','hlsErrorCount']
+   if self.path.startswith('/api/downloads/'):
+    try:
+     if self.path=='/api/downloads/prepare':result=downloads.prepare(data.get('id'),data.get('episode'),data.get('poster_url'))
+     elif self.path=='/api/downloads/open-folder':downloads.open_folder(data.get('job'));result={'opened':True}
+     elif self.path=='/api/downloads/set-folder':result=downloads.set_folder(data.get('folder'))
+     elif self.path=='/api/downloads/choose-folder':result=downloads.choose_folder()
+     else:
+      if not re.fullmatch(r'[a-f0-9]{32}',str(data.get('job',''))):return self.send(400)
+      if self.path.endswith('/cancel'):result=downloads.cancel(data['job'])
+      elif self.path.endswith('/forget'):result=downloads.forget(data['job'])
+      elif self.path.endswith('/retry'):result=downloads.retry(data['job'])
+      else:result=downloads.start(data['job'],data.get('audio',0),data.get('subtitle',-1))
+     return self.send(200,json.dumps(result,ensure_ascii=False).encode('utf8'))
+    except DownloadBusy as error:return self.send(409,json.dumps({'error':str(error),'active_id':error.identifier}).encode('utf8'))
+    except KeyError:return self.send(404)
+    except (ValueError,RuntimeError) as error:return self.send(400,json.dumps({'error':str(error)}).encode('utf8'))
    if self.path=='/api/vod/buffer/stop':
     if not re.fullmatch(r'[a-f0-9]{24}',str(data.get('key',''))):return self.send(400)
     vod.stop_buffer(data['key']);return self.send(200,b'{"stopped":true}')
@@ -235,4 +287,4 @@ if __name__=='__main__':
  portal.start()
  try:server.serve_forever()
  except KeyboardInterrupt:pass
- finally:portal.stop.set();vod.buffer.close();server.server_close()
+ finally:portal.stop.set();downloads.close();vod.buffer.close();server.server_close()
