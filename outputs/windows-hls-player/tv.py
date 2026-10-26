@@ -1,5 +1,5 @@
 """TV source renewal at explicitly authorized original SLB/media destinations."""
-import hashlib,http.client,json,threading,time,urllib.parse
+import hashlib,http.client,json,threading,time,urllib.parse,socket,ipaddress
 from pathlib import Path
 from ranger_hls_transport import RangerHlsTransport
 from ranger_live_v9 import LiveV9Protocol
@@ -81,6 +81,17 @@ class TvService:
         if int(params['expired'][0])<=self.clock():raise ValueError('Channel license expired')
         media=params['media_code'][0]
         return channel,license,'http://'+self.media_origin[1]+':'+str(self.media_origin[2])+'/live/'+urllib.parse.quote(media,safe='')+'.m3u8'
+    def resolve_slb(self,host):
+        # Resolve only the validated provider hostname using the OS resolver.
+        # Keep hostname/SNI/certificate checks in SlbHttpClient; do not pin old IPs.
+        if host!=self.slb_host:raise ValueError('Unexpected TV SLB hostname')
+        try:rows=socket.getaddrinfo(host,443,family=socket.AF_INET,type=socket.SOCK_STREAM)
+        except OSError as error:raise ConnectionError('TV provider DNS unavailable') from error
+        answers=list(dict.fromkeys(row[4][0] for row in rows))
+        if not answers or len(answers)>8 or any(not ipaddress.ip_address(ip).is_global for ip in answers):
+            raise ValueError('Invalid public TV DNS answers')
+        return answers
+
     def renew(self,owner,tag):
         channel,license,_=self.selection(owner)
         session=json.loads((self.root/'work/portal-native/active-data.private.json').read_text(encoding='utf8'))
@@ -94,7 +105,7 @@ class TvService:
         if int(urllib.parse.parse_qs(grant)['expired'][0])<=self.clock()+90:raise ValueError('Portal TV grant is near expiry')
         headers={k:v for k,v in self.original['headers'].items() if k in ['app','app-version','ranger-id']};headers['Content-License']=license['license']
         if self.protocol is None:self.protocol=LiveV9Protocol()
-        value=SlbHttpClient(self.protocol,lambda host:[self.slb_ip] if host==self.slb_host else [],extra_headers=headers,version=9).request(address,'live',[{'auth':grant,'license':license['license']}])
+        value=SlbHttpClient(self.protocol,self.resolve_slb,extra_headers=headers,version=9).request(address,'live',[{'auth':grant,'license':license['license']}])
         candidate=self.factory(make_source(self.original,value,tag,self.media_origin))
         if candidate.expires<=self.clock()+90:raise ValueError('TV source is near expiry')
         self.state['source_lookups']+=1

@@ -14,13 +14,11 @@ La aplicación se abre en tu navegador. No necesitas instalar Python, FFmpeg ni 
 
 Esta variante inicia directamente el motor incluido y no contiene el lanzador `XuperPC.exe` de PyInstaller. Esto no certifica la seguridad de las dependencias incluidas.
 
-## Novedades de la versión 0.1.3
+## Novedades de la versión 0.1.4
 
-- Hasta tres descargas simultáneas para películas y series.
-- Búfer con objetivo de tres minutos e indicador de segundos disponibles.
-- Mayor tolerancia a descargas lentas y renovación sincronizada.
-- Continuación desde el minuto guardado con precarga previa.
-- Agrupación de fragmentos pequeños para evitar bloqueos como el corregido en La Brea T3.
+- Corrección de TV en vivo: usa el DNS normal del sistema para el dominio validado del proveedor, en lugar de una IP fija desactualizada.
+- Conserva la misma sesión, las comprobaciones HTTPS y las validaciones del servidor de video.
+- Mantiene las tres descargas paralelas, el búfer de tres minutos y las mejoras de continuación de la versión 0.1.3.
 
 Al actualizar, cierra la versión anterior y conserva tu carpeta `Datos`: contiene tu sesión, favoritos y progreso. No la compartas con otras personas. El ZIP publicado se prepara sin datos personales.
 
