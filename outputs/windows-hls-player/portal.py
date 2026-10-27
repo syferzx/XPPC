@@ -88,6 +88,7 @@ def public_item(asset, kind):
             'name': asset.get('name', 'Sin título'), 'kind': kind, 'groups': [],
             'description': asset.get('description', ''), 'genres': asset.get('tags', ''),
             'cast': asset.get('actorDisplay', ''), 'score': asset.get('score'),
+            'original_country':str(asset.get('originalCountry') or '')[:120],'original_language':str(asset.get('language') or '')[:40],
             'year':public_year(asset.get('releaseTime')),'series_country':str(asset.get('originalCountry') or '')[:120] if kind=='series' else '',
             'series_group_key':series_group_token(asset) if kind=='series' else None,
             'episodes': asset.get('volumnCount', 0), 'duration': asset.get('duration', ''),
@@ -110,6 +111,7 @@ class PortalService:
         self.pages = {}
         self.home_pages = {}
         self.series_groups = {}
+        self.title_details = collections.OrderedDict()
         self.assets = {}
         self.searches = collections.OrderedDict()
         self.state = {'connected': False, 'last_heartbeat_unix': None,
@@ -409,15 +411,31 @@ class PortalService:
             result['resume_id']=max(watched,key=lambda row:row[1].get('updated_unix',0))[0] if watched else None
             return result
 
-    def detail(self, item_id):
+    def title_detail(self, item_id):
+        """Reuse recent metadata only; playback grants are always requested fresh."""
         with self.lock:
             kind, asset = self.assets[item_id]
+            cache = self.title_details
+            cached = cache.get(item_id)
+            if cached and time.monotonic() - cached[0] < 60:
+                cache.move_to_end(item_id)
+                return cached[1]
             data = self.request('/api/portalCore/v4/getItemData', {
                 'contentId': asset['contentId'], 'type': asset.get('type', '0' if kind == 'series' else '1'),
                 'sortType': '0', 'language': 'es', 'macAddr': '02:00:00:00:00:00'})
             detail = data.get('assetData')
             if not isinstance(detail, dict):
                 raise ValueError('Invalid title detail')
+            cache[item_id] = (time.monotonic(), detail)
+            cache.move_to_end(item_id)
+            while len(cache) > 64:
+                cache.popitem(last=False)
+            return detail
+
+    def detail(self, item_id):
+        with self.lock:
+            kind, asset = self.assets[item_id]
+            detail = self.title_detail(item_id)
             programs = detail.get('simpleProgramList', [])
             return {'item': public_item(detail, kind), 'episodes': [
                 {'name': p.get('name', ''), 'number': p.get('seriesNumber'),

@@ -130,7 +130,7 @@ function mediaCard(item,landscape=false){
   const tag=document.createElement('span');tag.className='card-tag';tag.textContent=item.kind==='series'?'SERIE':'PELÍCULA';picture.append(tag);
   const displayName=item.kind==='series'?seriesIdentity(item.name).title:item.name;const title=document.createElement('span');title.className='card-title';title.textContent=displayName;title.title=displayName;open.append(picture,title);
   if(!landscape){const meta=document.createElement('span');meta.className='card-meta';meta.textContent=[item.year,item.series_country,(item.genres||'').split(',').slice(0,2).join(' · ')].filter(Boolean).join(' · ')||(item.kind==='series'?'Serie':'Película');open.append(meta)}
-  picture.append(cardRating(item.score));open.onclick=()=>choose(item);card.append(open,favoriteButton(item));if(item.kind==='movies'){const download=document.createElement('button');download.className='card-download';download.append(icon('download'));download.title='Descargar MP4';download.setAttribute('aria-label','Descargar '+item.name+' en MP4');download.onclick=()=>window.downloadUI?.open(item);card.append(download)}cardPreview.bind(card,item);return card;
+  picture.append(cardRating(item.score));open.onclick=()=>choose(item);card.append(open,favoriteButton(item));if(item.kind==='movies'){const download=document.createElement('button');download.className='card-download';download.append(icon('download'));download.title='Descargar';download.setAttribute('aria-label','Descargar '+item.name+' en MKV o MP4');download.onclick=()=>window.downloadUI?.open(item);card.append(download)}cardPreview.bind(card,item);return card;
 }
 function tvCard(item){
   const card=document.createElement('article');card.className='tv-item';const open=document.createElement('button');open.className='tv-open';open.setAttribute('aria-label','Ver '+item.name+' en vivo');
@@ -299,6 +299,7 @@ function groupSeries(list){
   const seen=new Set();return list.filter(item=>{if(item.kind!=='series')return true;const key=seriesGroupKey(item);if(seen.has(key))return false;seen.add(key);return true;});
 }
 async function choose(item){
+  if(view==='anime')item={...item,_isAnime:true};
   cardPreview.hide();
   if(item.kind==='tv'){
     if($('watchDialog').open)$('watchDialog').close();
@@ -328,13 +329,13 @@ async function choose(item){
     prepareSelection(item);$('seasonBar').hidden=false;$('seasonSelect').replaceChildren(new Option(item.name,item.id));$('seasonSelect').disabled=true;$('seasonNote').textContent='No se pudieron consultar las otras temporadas. Vuelve a abrir la serie para reintentar.';
   }
 }
-function openSeason(item){prepareSelection(item);$('seasonBar').hidden=false;$('seasonSelect').disabled=false;$('title').textContent=seasonGroupTitle;syncFavoriteControls();}
+function openSeason(item){if(selected?._isAnime)item={...item,_isAnime:true};prepareSelection(item);$('seasonBar').hidden=false;$('seasonSelect').disabled=false;$('title').textContent=seasonGroupTitle;syncFavoriteControls();}
 $('seasonSelect').onchange=()=>{const item=seasonCollection?.find(entry=>entry.id===$('seasonSelect').value);if(item)openSeason(item);};
 
 function stopPlayer(){
   stopVodReadAhead();
   seriesOpening++;seasonCollection=null;$('seasonBar').hidden=true;$('recommendationsSection').hidden=true;$('recommendationsItems').replaceChildren();
-  selectionRevision++;cancelVodPreparation();setPlayerLoading(false);savePlaybackProgress(video.ended);current=null;selected=null;if(hls){hls.destroy();hls=null}video.pause();video.removeAttribute('src');setContentArtwork({});video.load();resetTracks();error.textContent='';
+  selectionRevision++;cancelVodPreparation();setPlayerLoading(false);savePlaybackProgress(video.ended);resetTracks();current=null;selected=null;if(hls){hls.destroy();hls=null}video.pause();video.removeAttribute('src');setContentArtwork({});video.load();resetTracks();error.textContent='';
 }
 async function loadHome(){
   homeLoading=true;homeErrors={};renderShelves();

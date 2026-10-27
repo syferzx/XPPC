@@ -34,3 +34,12 @@ node_modules/
 !/work/test_catalog_sort.cjs
 !/work/test_live_tv_layout.cjs
 !/work/test_library_redesign.cjs
+
+**/preferences.json
+!/work/test_preferences.py
+!/work/test_playback_preferences.cjs
+!/work/test_subtitle_cleanup.cjs
+!/work/test_title_detail_cache.py
+!/work/test_downloads.py
+!/work/test_download_ui.cjs
+!/work/test_library_redesign.cjs

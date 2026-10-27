@@ -23,11 +23,15 @@ def safe_name(value):
     if not value or re.fullmatch(r'(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])',value):value='Contenido'
     return value
 
-def export_arguments(executable,source,output,audio,codec,subtitle=None,audio_language='und',subtitle_language='und'):
+def export_arguments(executable,source,output,audio,codec,subtitle=None,audio_language='und',subtitle_language='und',container='mp4'):
     args=[executable,'-y','-nostdin','-hide_banner','-loglevel','error','-protocol_whitelist','file,pipe','-i',str(source)]
     if subtitle:args+=['-protocol_whitelist','file,pipe','-i',str(subtitle)]
     args+=['-map','0:v:0','-map','0:a:'+str(audio)+'?']
     if subtitle:args+=['-map','1:s:0','-c:s','mov_text','-metadata:s:s:0','language='+subtitle_language,'-disposition:s:0','default']
+    if container=='mkv':
+        args+=['-c:v','copy','-c:a','copy','-metadata:s:a:0','language='+audio_language]
+        if subtitle:args+=['-c:s','srt']
+        return args+['-map_metadata','-1','-avoid_negative_ts','make_zero','-progress','pipe:1','-nostats','-f','matroska',str(output)]
     if str(codec).lower() in ('avc1','h264','avc'):args+=['-c:v','copy']
     else:args+=['-c:v','libx264','-preset','veryfast','-crf','22','-pix_fmt','yuv420p','-threads','2']
     return args+['-c:a','aac','-b:a','192k','-ac','2','-metadata:s:a:0','language='+audio_language,'-map_metadata','-1','-avoid_negative_ts','make_zero','-movflags','+faststart','-progress','pipe:1','-nostats',str(output)]
@@ -46,7 +50,7 @@ class DownloadService:
         self.worker=threading.Thread(target=self._queue_loop,daemon=True,name='mp4-queue');self.worker.start()
     def _save(self):
         # Public metadata and content identifiers only; never persist playback grants.
-        fields=('id','item_id','episode','name','state','percent','downloaded_bytes','total_bytes','audio_tracks','subtitle_tracks','audio','subtitle','audio_language','subtitle_language','filename','subtitle_filename','destination','error','asset','kind','poster_url','series_title','series_group','season')
+        fields=('id','item_id','episode','name','state','percent','downloaded_bytes','total_bytes','audio_tracks','subtitle_tracks','audio','subtitle','audio_language','subtitle_language','filename','subtitle_filename','destination','error','asset','kind','poster_url','series_title','series_group','season','format')
         payload={'version':1,'output':str(self.output),'jobs':[{k:j[k] for k in fields if k in j} for j in self.jobs.values() if confirmed_download(j) and j['state'] not in ('preparing','options')]}
         temporary=self.ledger.with_suffix('.tmp');temporary.write_text(json.dumps(payload,ensure_ascii=False),encoding='utf8');temporary.replace(self.ledger)
     def _restore(self):
@@ -72,10 +76,10 @@ class DownloadService:
         # Adopt files made by the previous release, without moving or changing them.
         known={(j.get('destination'),j.get('filename')) for j in self.jobs.values()}
         if self.output.is_dir():
-            for path in list(self.output.glob('*.mp4'))[:200]:
-                if path.is_symlink() or (str(self.output),path.name) in known or not re.fullmatch(r'.+ - [a-z]{2,3} - [a-f0-9]{8}\.mp4',path.name):continue
+            for path in (list(self.output.glob('*.mp4'))+list(self.output.glob('*.mkv')))[:200]:
+                if path.is_symlink() or (str(self.output),path.name) in known or not re.fullmatch(r'.+ - [a-z]{2,3} - [a-f0-9]{8}\.(?:mp4|mkv)',path.name):continue
                 identifier=uuid.uuid5(uuid.NAMESPACE_URL,str(path)).hex
-                self.jobs[identifier]={'id':identifier,'name':path.stem.rsplit(' - ',2)[0],'state':'ready','percent':100,'downloaded_bytes':path.stat().st_size,'total_bytes':path.stat().st_size,'filename':path.name,'subtitle_filename':path.with_suffix('.srt').name if path.with_suffix('.srt').is_file() else None,'destination':str(self.output),'cancel':threading.Event(),'created':time.monotonic()}
+                self.jobs[identifier]={'id':identifier,'name':path.stem.rsplit(' - ',2)[0],'state':'ready','percent':100,'downloaded_bytes':path.stat().st_size,'total_bytes':path.stat().st_size,'filename':path.name,'format':path.suffix[1:],'subtitle_filename':path.with_suffix('.srt').name if path.with_suffix('.srt').is_file() else None,'destination':str(self.output),'cancel':threading.Event(),'created':time.monotonic()}
     def listing(self):
         with self.lock:
             positions={j['id']:i+1 for i,j in enumerate(j for j in self.jobs.values() if j['state']=='queued')}
@@ -157,7 +161,7 @@ class DownloadService:
                     size=source.sessions[key]['index']['size']
                     if not 0<size<=16*1024**3:raise ValueError('El contenido supera el límite de descarga de 16 GB.')
                     destination=Path(job['destination']);destination.mkdir(parents=True,exist_ok=True)
-                    if min(shutil.disk_usage(self.base).free,shutil.disk_usage(destination).free)<size*3+256*1024**2:raise ValueError('No hay espacio suficiente para preparar el MP4.')
+                    if min(shutil.disk_usage(self.base).free,shutil.disk_usage(destination).free)<size*3+256*1024**2:raise ValueError('No hay espacio suficiente para preparar el archivo.')
                     with self.lock:
                         self._check(job);job.update(key=key,total_bytes=size,duration=grant.get('duration_seconds',0),state='downloading');self._save()
                     self._download(job)
@@ -168,7 +172,7 @@ class DownloadService:
         if path.parent.resolve()!=self.base.resolve() or not re.fullmatch(r'[a-f0-9]{32}',path.name) or path.is_symlink():raise ValueError('Invalid staging path')
         shutil.rmtree(path,ignore_errors=True)
     def _public(self,job):
-        keys=('id','item_id','episode','name','state','percent','downloaded_bytes','total_bytes','speed_bytes','processed_seconds','audio_tracks','subtitle_tracks','error','filename','subtitle_filename','kind','poster_url','series_title','series_group','season')
+        keys=('id','item_id','episode','name','state','percent','downloaded_bytes','total_bytes','speed_bytes','processed_seconds','audio_tracks','subtitle_tracks','error','filename','subtitle_filename','kind','poster_url','series_title','series_group','season','format')
         value={k:job[k] for k in keys if k in job}
         value['destination']=job.get('destination',str(self.output));value['parallel_parts']=3
         if job['state']=='ready':
@@ -220,15 +224,16 @@ class DownloadService:
                 job.update(key=key,total_bytes=size,duration=grant.get('duration_seconds',0),audio_tracks=grant.get('audio_tracks',[]),subtitle_tracks=[{'index':t['index'],'language':t['language']} for t in grant.get('subtitle_tracks',[])],state='options')
         except Cancelled:self._finish_error(job,'cancelled')
         except Exception:self._finish_error(job,'error','No se pudo preparar la descarga. Comprueba la sesión y vuelve a intentarlo.')
-    def start(self,identifier,audio=0,subtitle=-1):
+    def start(self,identifier,audio=0,subtitle=-1,container='mkv'):
         with self.lock:
             job=self.jobs[identifier]
             if job['state']!='options':raise ValueError('La descarga no está lista para elegir opciones.')
             if type(audio) is not int or (job['audio_tracks'] and audio not in [t['index'] for t in job['audio_tracks']]) or (not job['audio_tracks'] and audio!=0):raise ValueError('Audio no disponible.')
             if type(subtitle) is not int or (subtitle!=-1 and subtitle not in [t['index'] for t in job['subtitle_tracks']]):raise ValueError('Subtítulo no disponible.')
+            if container not in ('mkv','mp4'):raise ValueError('Formato no disponible.')
             self._check(job)
             previous=dict(job)
-            job.update(state='queued',audio=audio,subtitle=subtitle,destination=str(self.output),
+            job.update(state='queued',format=container,audio=audio,subtitle=subtitle,destination=str(self.output),
                        audio_language=next((t.get('language','und') for t in job['audio_tracks'] if t['index']==audio),'und'),
                        subtitle_language=next((t.get('language','und') for t in job['subtitle_tracks'] if t['index']==subtitle),'und'))
             try:self._save()
@@ -267,7 +272,7 @@ class DownloadService:
                 while process.poll() is None:
                     self._check(job)
                     if time.monotonic()-started>max(180,duration*4+120):raise ValueError('La conversión tardó más de lo permitido.')
-                    if shutil.disk_usage(self.base).free<64*1024**2:raise ValueError('No queda espacio para terminar el MP4.')
+                    if shutil.disk_usage(self.base).free<64*1024**2:raise ValueError('No queda espacio para terminar el archivo.')
                     time.sleep(.15)
                 self._check(job)
                 if process.returncode:raise ValueError('FFmpeg no pudo crear el archivo seleccionado.')
@@ -308,11 +313,12 @@ class DownloadService:
                 self._run(job,[executable,'-y','-nostdin','-v','error','-protocol_whitelist','file,pipe','-i',str(vtt),'-c:s','srt',str(srt)],folder/'subtitle.log')
             with self.lock:job.update(state='converting',percent=75,speed_bytes=0)
             audio_language=language(next((t.get('language') for t in job['audio_tracks'] if t['index']==job['audio']),'und'))
-            mp4=folder/'output.mp4';args=export_arguments(executable,raw,mp4,job['audio'],index.get('video_codec'),vtt,audio_language,sub_language)
+            container=job.get('format','mp4')
+            mp4=folder/('output.'+container);args=export_arguments(executable,raw,mp4,job['audio'],index.get('video_codec'),vtt,audio_language,sub_language,container)
             self._run(job,args,folder/'encode.log',job['duration']);self._check(job)
-            if not mp4.exists() or mp4.stat().st_size<100:raise ValueError('No se generó un MP4 válido.')
+            if not mp4.exists() or mp4.stat().st_size<100:raise ValueError('No se generó un archivo válido.')
             destination_folder=Path(job['destination'])
-            name=safe_name(job['name'])+' - '+audio_language+' - '+job['id'][:8];destination=destination_folder/(name+'.mp4')
+            name=safe_name(job['name'])+' - '+audio_language+' - '+job['id'][:8];destination=destination_folder/(name+'.'+container)
             if destination.exists():raise ValueError('El archivo de salida ya existe.')
             # Copy to an unadvertised partial file on the destination filesystem, then rename.
             partial=destination_folder/(name+'.part');sub_dest=None;partial_created=False;sub_created=False

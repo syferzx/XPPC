@@ -14,17 +14,17 @@ La aplicación se abre en tu navegador. No necesitas instalar Python, FFmpeg ni 
 
 Esta variante inicia directamente el motor incluido y no contiene el lanzador `XuperPC.exe` de PyInstaller. Esto no certifica la seguridad de las dependencias incluidas.
 
-## Novedades de la versión 0.1.5
+## Novedades de la versión 0.1.6
 
-- Mis descargas: películas y episodios en MP4, elección de audio y subtítulos, cola, progreso y carpeta predeterminada.
-- Carátulas e historial local; episodios agrupados por serie y temporada. Detecta archivos borrados o movidos desde Windows.
-- Hasta tres partes de un título en paralelo. No garantiza mayor velocidad si existe otro límite de conexión o del proveedor.
-- Descargar detiene la reproducción y su búfer. Abrir opciones sin confirmar no añade entradas al historial.
-- Reproductor renovado: barra roja, controles de audio y subtítulos accesibles y correcciones de pantalla completa.
-- Reseñas al pasar el cursor, puntuación sobre la carátula y orden por nota o año de los títulos cargados.
-- Correcciones de agrupación de temporadas y categoría de TV 24/7.
+- Apertura más ágil: reutiliza durante un minuto la ficha reciente del título y prepara el video antes de consultar recomendaciones. Conserva el búfer existente.
+- Configuración desde el círculo PC: preferencias de audio y subtítulos separadas para anime y para películas/series; también se aplican al preparar descargas.
+- Audio original: usa la identificación disponible; si falta, puede estimarlo por el país de origen y lo indica. Si no puede determinarlo, utiliza la pista predeterminada.
+- Corrige subtítulos que permanecían visibles al cambiar de contenido e ignora respuestas de pistas anteriores.
+- MKV original como descarga predeterminada: conserva video y audio sin recodificarlos. MP4 compatible sigue disponible como alternativa.
 
-Consulta [Mis descargas](docs/DESCARGAS.md). Mantén el servidor abierto hasta completar las descargas; una descarga interrumpida requiere volver a intentarlo.
+Los idiomas solo se seleccionan cuando el título los ofrece. La estimación del audio original puede requerir corrección manual. El tiempo de apertura depende también del proveedor.
+
+Consulta [Mis descargas](docs/DESCARGAS.md). Conserva el servidor abierto hasta terminar; una descarga interrumpida requiere volver a intentarlo.
 
 Al actualizar, cierra la versión anterior y conserva tus carpetas `Datos` y `Descargas`. `Datos` contiene tu sesión, favoritos y progreso. No la compartas con otras personas. El ZIP publicado se prepara sin datos personales.
 

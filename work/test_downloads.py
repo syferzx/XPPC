@@ -44,7 +44,7 @@ class Tests(unittest.TestCase):
   id=self.options()
   with self.assertRaises(DownloadBusy):self.service.prepare('a'*20,'2')
   with self.assertRaises(ValueError):self.service.start(id,44,0)
-  self.service.start(id,1,0);result=self.wait(id,{'ready','error'});self.assertEqual(result['state'],'ready',result)
+  self.service.start(id,1,0,'mp4');result=self.wait(id,{'ready','error'});self.assertEqual(result['state'],'ready',result)
   path=self.service.file(id);self.assertGreater(path.stat().st_size,1000)
   probe=subprocess.run([str(FF),'-hide_banner','-i',str(path),'-t','0','-f','null','-'],capture_output=True).stderr.decode()
   self.assertIn('(eng): Audio: aac',probe);self.assertIn('Video: h264',probe);self.assertIn('Subtitle: mov_text',probe);self.assertNotIn('(spa): Audio:',probe)
@@ -96,5 +96,20 @@ class Tests(unittest.TestCase):
   id=self.options();self.service.start(id);self.service.cancel(id);self.gate.set()
   self.wait(id,{'cancelled'});items=self.service.listing()['items']
   self.assertEqual(len(items),1);self.assertEqual(items[0]['state'],'cancelled')
+ def test_default_mkv_preserves_video_audio_packets_and_subtitles(self):
+  id=self.options();self.service.start(id,1,0);result=self.wait(id,{'ready','error'})
+  self.assertEqual(result['state'],'ready',result);self.assertEqual(result['format'],'mkv');path=self.service.file(id);self.assertEqual(path.suffix,'.mkv')
+  probe=subprocess.run([str(FF),'-hide_banner','-i',str(path),'-t','0','-f','null','-'],capture_output=True).stderr.decode()
+  self.assertIn('matroska',probe);self.assertIn('(eng): Audio: aac',probe);self.assertIn('Subtitle: subrip',probe)
+  def packet_hash(file,stream):
+   return subprocess.run([str(FF),'-v','error','-i',str(file),'-map',stream,'-c','copy','-f','adts','-'],capture_output=True,check=True).stdout.strip()
+  def frames(file):
+   text=subprocess.run([str(FF),'-v','error','-i',str(file),'-map','0:v:0','-f','framemd5','-'],capture_output=True,check=True).stdout.decode()
+   return [line.rsplit(',',1)[-1].strip() for line in text.splitlines() if line and not line.startswith('#')]
+  self.assertEqual(frames(self.root/'fixture.ts'),frames(path))
+  self.assertEqual(packet_hash(self.root/'fixture.ts','0:a:1'),packet_hash(path,'0:a:0'))
+  self.assertIn('Texto de prueba',self.service.file(id,True).read_text())
+  from downloads import export_arguments
+  args=export_arguments(str(FF),'in.ts','out.mkv',0,'hevc',container='mkv');self.assertEqual(args[args.index('-c:v')+1],'copy');self.assertEqual(args[args.index('-c:a')+1],'copy');self.assertNotIn('libx264',args)
 if __name__=='__main__':unittest.main()
 

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>XuperPC · Tu próxima historia</title><link rel="stylesheet" href="/app.css?v=20261026-download-covers">
+  <title>XuperPC · Tu próxima historia</title><link rel="stylesheet" href="/app.css?v=20261027-faster-start">
 </head>
 <body>
 <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
@@ -21,7 +21,7 @@
     <button data-view="home" aria-current="page">Inicio</button><button data-view="movies" data-kind="movies">Películas</button><button data-view="series" data-kind="series">Series</button><button data-view="anime">Anime</button><button data-view="tv" data-kind="tv">TV en vivo</button><button data-view="favorites">Mi lista <span id="favoriteCount" class="nav-count" hidden>0</span></button><button data-view="downloads">Mis descargas <span id="downloadNavCount" class="nav-count" hidden>0</span></button>
   </nav>
   <label class="search-box"><svg><use href="#i-search"/></svg><input id="search" type="search" maxlength="120" placeholder="Buscar películas y series…" aria-label="Buscar en todo el catálogo"></label>
-  <div class="profile-mark" title="Biblioteca de este PC" aria-label="Biblioteca de este PC">PC</div>
+  <button id="profileSettings" class="profile-mark" title="Configuración" aria-label="Configuración de este PC">PC</button>
 </header>
 <main>
   <section id="homeView" aria-label="Inicio">
@@ -60,7 +60,7 @@
 </main>
 <dialog id="watchDialog" class="watch-dialog" aria-labelledby="title">
   <img id="watchBackdrop" class="watch-backdrop" alt="" aria-hidden="true" referrerpolicy="no-referrer" hidden>
-  <div class="watch-heading"><div><div id="selectedType" class="eyebrow">PELÍCULA</div><h2 id="title">Selecciona un título</h2></div><div class="watch-heading-actions"><button id="downloadContent" type="button" class="download-entry" disabled hidden><svg aria-hidden="true"><use href="#i-download"/></svg><span>Descargar MP4</span></button><button id="selectedFavorite" class="icon-button" aria-label="Añadir a Mi lista"><svg><use href="#i-heart"/></svg></button><button id="closePlayer" class="icon-button" aria-label="Cerrar reproductor"><svg><use href="#i-close"/></svg></button></div></div>
+  <div class="watch-heading"><div><div id="selectedType" class="eyebrow">PELÍCULA</div><h2 id="title">Selecciona un título</h2></div><div class="watch-heading-actions"><button id="downloadContent" type="button" class="download-entry" disabled hidden><svg aria-hidden="true"><use href="#i-download"/></svg><span>Descargar</span></button><button id="selectedFavorite" class="icon-button" aria-label="Añadir a Mi lista"><svg><use href="#i-heart"/></svg></button><button id="closePlayer" class="icon-button" aria-label="Cerrar reproductor"><svg><use href="#i-close"/></svg></button></div></div>
   <div class="watch-overview">
     <div id="info" hidden><div id="metadata" class="muted"></div><p id="description"></p><p id="vodNotice" class="note"></p></div>
     <div class="watch-playback" id="watchPlayback">
@@ -84,10 +84,11 @@
   <section id="recommendationsSection" class="watch-recommendations" aria-labelledby="recommendationsHeading" hidden><h3 id="recommendationsHeading">Quizás te guste</h3><p id="recommendationsNote" class="muted" role="status"></p><div id="recommendationsItems" class="recommendations-grid"></div></section>
   </div>
 </dialog>
+<dialog id="preferencesDialog" class="download-dialog preferences-dialog" aria-labelledby="preferencesTitle"><div class="download-heading"><div><span class="eyebrow">ESTE PC</span><h2 id="preferencesTitle">Configuración</h2></div><button id="preferencesClose" class="icon-button" aria-label="Cerrar configuración"><svg><use href="#i-close"/></svg></button></div><p class="download-hint">Se aplican al abrir contenido nuevo y al preparar descargas. Puedes cambiar las pistas de cada título sin modificar estas preferencias.</p><fieldset><legend>Películas y series</legend><label for="prefGeneralAudio">Audio preferido</label><select id="prefGeneralAudio"></select><label for="prefGeneralSub">Subtítulos</label><select id="prefGeneralSub"></select></fieldset><fieldset><legend>Anime</legend><label for="prefAnimeAudio">Audio preferido</label><select id="prefAnimeAudio"></select><label for="prefAnimeSub">Subtítulos</label><select id="prefAnimeSub"></select></fieldset><p class="download-hint">Audio original usa la identificación de la pista cuando existe. En su defecto, intenta estimar el idioma por el país de origen y avisa; si no puede, usa la pista predeterminada. Solo se activan subtítulos que el proveedor entregue.</p><p id="preferencesMessage" role="status" class="download-hint"></p><div class="download-actions"><button id="preferencesSave" class="primary">Guardar preferencias</button></div></dialog>
 <dialog id="downloadDialog" class="download-dialog" aria-labelledby="downloadTitle">
-  <div class="download-heading"><div><span class="eyebrow">DESCARGAR AL PC</span><h2 id="downloadTitle">Descargar MP4</h2></div><button id="downloadClose" class="icon-button" type="button" aria-label="Cerrar descarga"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+  <div class="download-heading"><div><span class="eyebrow">DESCARGAR AL PC</span><h2 id="downloadTitle">Descargar</h2></div><button id="downloadClose" class="icon-button" type="button" aria-label="Cerrar descarga"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
   <p id="downloadState" role="status">Consultando opciones…</p>
-  <div id="downloadOptions" hidden><label for="downloadAudio">Audio</label><select id="downloadAudio" aria-label="Audio de la descarga"></select><label for="downloadSubtitle">Subtítulos</label><select id="downloadSubtitle" aria-label="Subtítulos de la descarga"><option value="-1">Desactivados</option></select><p id="downloadSize" class="muted"></p><p class="download-hint">MP4 con video H.264 y audio AAC. El subtítulo elegido se incluye como pista y también se guarda en SRT. Si hace falta convertir el video, puede tardar.</p></div>
+  <div id="downloadOptions" hidden><label for="downloadFormat">Formato</label><select id="downloadFormat"><option value="mkv" selected>MKV original · sin recodificar</option><option value="mp4">MP4 compatible · puede tardar más</option></select><label for="downloadAudio">Audio</label><select id="downloadAudio" aria-label="Audio de la descarga"></select><label for="downloadSubtitle">Subtítulos</label><select id="downloadSubtitle" aria-label="Subtítulos de la descarga"><option value="-1">Desactivados</option></select><p id="downloadSize" class="muted"></p><p class="download-hint">MKV conserva el video y el audio originales, sin recodificar. MP4 convierte a H.264/AAC cuando hace falta. El subtítulo elegido se incluye y también se guarda en SRT.</p></div>
   <div id="downloadProgressBox" hidden><progress id="downloadProgress" max="100" value="0" aria-label="Progreso de descarga"></progress><p id="downloadProgressText"></p></div>
   <div id="downloadReady" hidden><p id="downloadSavedName"></p><button id="downloadFolder" type="button" class="secondary">Abrir carpeta Descargas</button><div class="download-files"><a id="downloadFile">Guardar otra copia del MP4</a><a id="downloadSubtitleFile" hidden>Guardar otra copia del SRT</a></div></div>
   <div class="download-actions"><button id="downloadStart" type="button" class="primary" hidden>Añadir a Mis descargas</button><button id="downloadCancel" type="button" class="secondary" hidden>Cancelar descarga</button><button id="downloadAgain" type="button" class="secondary" hidden>Nueva descarga</button></div>
@@ -97,7 +98,7 @@
 <div id="downloadAdded" class="download-added" role="status" hidden><span class="download-added-icon" aria-hidden="true">↓<i>✓</i></span><div><strong>Añadido a Mis descargas</strong><p>La descarga sigue en la cola. Puedes consultar su progreso allí.</p></div><button id="downloadAddedOpen" class="secondary">Ver descargas</button></div>
 <button id="backToTop" class="back-to-top" aria-label="Volver arriba" title="Volver arriba"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 11 6-6 6 6M12 5v14"/></svg></button>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-<script src="/vendor/hls.min.js"></script><script src="/player.js?v=20261026-download-covers"></script><script src="/library.js?v=20261026-download-covers"></script>
-<script src="/downloads.js?v=20261026-download-covers"></script>
+<script src="/preferences.js?v=20261027-faster-start"></script><script src="/vendor/hls.min.js"></script><script src="/player.js?v=20261027-faster-start"></script><script src="/library.js?v=20261027-faster-start"></script>
+<script src="/downloads.js?v=20261027-faster-start"></script>
 </body></html>
 

@@ -4,20 +4,21 @@ window.downloadUI=(()=>{
   const active=new Set(['queued','preparing_download','downloading','converting','cancelling']);
   let job=null,target=null,ticket=0,configured=null,preparing=false,submitting=false,timer,listTimer,listBusy=false,folderDirty=false,noticeTimer;
   const cards=new Map(),seriesGroups=new Map();
-  const labels={preparing:'Consultando pistas…',options:'Elige audio y subtítulos',queued:'En cola',preparing_download:'Preparando descarga…',downloading:'Descargando',converting:'Preparando MP4',cancelling:'Cancelando…',cancelled:'Cancelada',ready:'Completada',error:'No se pudo descargar',interrupted:'Interrumpida al cerrar el programa'};
+  const labels={preparing:'Consultando pistas…',options:'Elige audio y subtítulos',queued:'En cola',preparing_download:'Preparando descarga…',downloading:'Descargando',converting:'Preparando archivo',cancelling:'Cancelando…',cancelled:'Cancelada',ready:'Completada',error:'No se pudo descargar',interrupted:'Interrumpida al cerrar el programa'};
   function bytes(n){return !Number.isFinite(n)||n<=0?'0 MB':n>=1024**3?(n/1024**3).toFixed(2)+' GB':(n/1024**2).toFixed(1)+' MB';}
   async function post(path,data={}){const response=await fetch('/api/downloads/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});let value={};try{value=await response.json()}catch{}if(!response.ok){const error=new Error(value.error||'No se pudo completar la solicitud.');error.active_id=value.active_id;throw error}return value;}
   function refresh(){entry.hidden=!selected||selected.kind==='tv';entry.disabled=!selected||selected.kind==='tv'||!$('episodes').options.length;}
   function halt(){if(typeof cardPreview!=='undefined')cardPreview.hide();if($('watchDialog').open)$('watchDialog').close();if(typeof stopPlayer==='function')stopPlayer();}
   function paint(value){
-    job=value;const state=job.state;$('downloadTitle').textContent=job.name||'Descargar MP4';$('downloadState').textContent=state==='options'?'Elige las pistas que quieres guardar.':job.error||labels[state]||state;
+    job=value;const state=job.state;$('downloadTitle').textContent=job.name||'Descargar';$('downloadState').textContent=state==='options'?'Elige las pistas que quieres guardar.':job.error||labels[state]||state;
     $('downloadOptions').hidden=state!=='options';$('downloadStart').hidden=state!=='options';$('downloadStart').disabled=state!=='options'||submitting;
     $('downloadCancel').hidden=!['preparing','options'].includes(state);$('downloadCancel').disabled=false;
     $('downloadProgressBox').hidden=true;$('downloadReady').hidden=true;$('downloadAgain').hidden=true;
     if(state==='options'&&configured!==job.id){
-      const audio=$('downloadAudio'),sub=$('downloadSubtitle');fillOptions(audio,job.audio_tracks||[]);
+      $('downloadFormat').value='mkv';const audio=$('downloadAudio'),sub=$('downloadSubtitle');fillOptions(audio,job.audio_tracks||[]);
       if(!audio.options.length){audio.append(new Option('Audio predeterminado','0'));audio.disabled=false}
       fillOptions(sub,job.subtitle_tracks||[],true);sub.disabled=false;
+      const preferred=window.playbackPreferences?.choose(target?.item,job.audio_tracks||[],job.subtitle_tracks||[]);if(preferred){target={...target,audio:preferred.audio,subtitle:preferred.subtitle}}
       if([...audio.options].some(o=>o.value===target?.audio))audio.value=target.audio;
       if([...sub.options].some(o=>o.value===target?.subtitle))sub.value=target.subtitle;
       $('downloadSize').textContent='Origen: '+bytes(job.total_bytes)+' · Tres partes en paralelo. Carpeta: '+(job.destination||'Descargas');configured=job.id;
@@ -29,11 +30,11 @@ window.downloadUI=(()=>{
   async function prepare(){
     if(!target||preparing)return;preparing=true;job=null;configured=null;const revision=++ticket;clearTimeout(timer);halt();
     $('downloadTitle').textContent=target.name;$('downloadState').textContent='Preparando opciones de descarga…';for(const id of ['downloadOptions','downloadStart','downloadCancel','downloadProgressBox','downloadReady','downloadAgain'])$(id).hidden=true;show();
-    try{const data=await post('prepare',{id:target.id,episode:target.episode,poster_url:target.poster_url});if(revision!==ticket){post('cancel',{job:data.id}).catch(()=>{});return}paint(data);}
+    try{if(window.playbackPreferences)await window.playbackPreferences.ready;const data=await post('prepare',{id:target.id,episode:target.episode,poster_url:target.poster_url});if(revision!==ticket){post('cancel',{job:data.id}).catch(()=>{});return}paint(data);}
     catch(error){if(revision!==ticket)return;if(error.active_id){dialog.close();notify('Este contenido ya está en Mis descargas.');section('downloads')}else $('downloadState').textContent=error.message;}
     finally{preparing=false;}
   }
-  function open(item,episode=null){const number=typeof episode==='object'?episode?.number:episode;target={id:item.id,episode:item.kind==='series'?String(number??$('episodes').value):null,name:item.name,poster_url:item.poster_url,audio:$('audioSelect').value,subtitle:$('subtitleSelect').value};prepare();}
+  function open(item,episode=null){const number=typeof episode==='object'?episode?.number:episode;target={item:{...item,_isAnime:item._isAnime||(typeof view!=='undefined'&&view==='anime')},id:item.id,episode:item.kind==='series'?String(number??$('episodes').value):null,name:item.name,poster_url:item.poster_url,audio:$('audioSelect').value,subtitle:$('subtitleSelect').value};prepare();}
   function added(){
     const notice=$('downloadAdded'),nav=document.querySelector('[data-view="downloads"]');notice.hidden=false;notice.classList.remove('is-added');void notice.offsetWidth;notice.classList.add('is-added');nav?.classList.remove('download-nav-pulse');void nav?.offsetWidth;nav?.classList.add('download-nav-pulse');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>{notice.hidden=true;nav?.classList.remove('download-nav-pulse')},5000);
   }
@@ -46,7 +47,7 @@ window.downloadUI=(()=>{
     const known=[...(typeof favoriteItems!=='undefined'&&Array.isArray(favoriteItems)?favoriteItems:[]),...(typeof items!=='undefined'&&Array.isArray(items)?items:[])].find(item=>item.id===value.item_id);
     const poster=value.poster_url||known?.poster_url;
     if(node.dataset.poster!==(poster||'')){node.dataset.poster=poster||'';p.mark.replaceChildren();if(poster){const image=document.createElement('img');image.src=poster;image.alt='';image.loading='lazy';image.referrerPolicy='no-referrer';image.onerror=()=>{image.remove();p.mark.textContent='↓'};p.mark.append(image)}else p.mark.textContent='↓'}
-    p.status.textContent=missing?'Archivo no encontrado':value.state==='queued'?'En cola · posición '+value.queue_position:labels[value.state]||value.state;
+    p.status.textContent=missing?'Archivo no encontrado':value.state==='queued'?'En cola · posición '+value.queue_position:(labels[value.state]||value.state)+(value.format?' · '+value.format.toUpperCase():'');
     p.progress.hidden=!active.has(value.state);p.progress.value=value.percent||0;
     p.detail.textContent=missing?'El archivo fue movido o borrado fuera de XuperPC.':value.error||value.state==='ready'&&value.filename||active.has(value.state)&&(Math.floor(value.percent||0)+' % · '+bytes(value.downloaded_bytes)+' de '+bytes(value.total_bytes)+(value.speed_bytes>0?' · '+bytes(value.speed_bytes)+'/s':'')+' · 3 partes en paralelo')||'';
     p.folder.textContent=value.destination||'';p.folder.title=value.destination||'';
@@ -84,7 +85,7 @@ window.downloadUI=(()=>{
       for(const [key,group] of seriesGroups){if(!group.ids.size){group.node.remove();seriesGroups.delete(key);continue}for(const [season,block] of group.seasons){if(!block.episodes.children.length){block.node.remove();group.seasons.delete(season);continue}const ordered=[...block.episodes.children].sort((a,b)=>Number(a.dataset.episode)-Number(b.dataset.episode));for(const node of ordered)block.episodes.append(node)}}
       for(let i=0;i<top.length;i++)if(list.children[i]!==top[i])list.insertBefore(top[i],list.children[i]||null);
 
-      if(!values.length){const empty=document.createElement('div');empty.className='downloads-empty';const title=document.createElement('h2');title.textContent='Tus películas, listas para llevar';const text=document.createElement('p');text.textContent='Añade películas o episodios con el botón Descargar MP4. Aquí verás la cola y los archivos terminados.';empty.append(title,text);list.append(empty)}
+      if(!values.length){const empty=document.createElement('div');empty.className='downloads-empty';const title=document.createElement('h2');title.textContent='Tus películas, listas para llevar';const text=document.createElement('p');text.textContent='Añade películas o episodios con el botón Descargar. Aquí verás la cola y los archivos terminados.';empty.append(title,text);list.append(empty)}
       if(dialog.open&&job){const value=values.find(v=>v.id===job.id);if(value)paint(value)}
       listTimer=setTimeout(loadList,count||view==='downloads'?2000:15000);
     }catch(error){$('downloadsError').textContent=error.message;listTimer=setTimeout(loadList,5000)}finally{listBusy=false}
@@ -92,7 +93,7 @@ window.downloadUI=(()=>{
   entry.onclick=()=>{if(selected)open(selected,selected.kind==='series'?$('episodes').value:null)};tray.onclick=()=>section('downloads');
   $('downloadClose').onclick=()=>dialog.close();dialog.addEventListener('close',()=>{if(submitting)return;if(preparing)ticket++;clearTimeout(timer);if(job&&['preparing','options'].includes(job.state)){const id=job.id;job=null;post('cancel',{job:id}).then(loadList).catch(()=>{})}});
   $('downloadStart').onclick=async()=>{if(!job||submitting)return;submitting=true;$('downloadStart').disabled=true;const id=job.id;
-    try{halt();const result=await post('start',{job:id,audio:Number($('downloadAudio').value),subtitle:Number($('downloadSubtitle').value)});job=result;dialog.close();added();loadList();}
+    try{halt();const result=await post('start',{job:id,audio:Number($('downloadAudio').value),subtitle:Number($('downloadSubtitle').value),format:$('downloadFormat').value});job=result;dialog.close();added();loadList();}
     catch(error){$('downloadState').textContent=error.message;$('downloadStart').disabled=false}finally{submitting=false}};
   $('downloadCancel').onclick=async()=>{if(!job)return;const id=job.id;try{await post('cancel',{job:id});job=null;dialog.close();loadList()}catch(error){$('downloadState').textContent=error.message}};
   $('downloadAddedOpen').onclick=()=>{$('downloadAdded').hidden=true;section('downloads')};$('downloadsRefresh').onclick=loadList;

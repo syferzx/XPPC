@@ -32,7 +32,7 @@ class VodService:
         self.stop_buffer()
         with self.portal.lock:
             kind,asset=self.portal.assets[item_id]
-            detail=self.portal.request('/api/portalCore/v4/getItemData',{'contentId':asset['contentId'],'type':asset.get('type','0' if kind=='series' else '1'),'sortType':'0','language':'es','macAddr':'02:00:00:00:00:00'})['assetData']
+            detail=self.portal.title_detail(item_id)
         programs=detail.get('simpleProgramList',[])
         if not programs:raise ValueError('No programs available')
         program=programs[0] if episode is None else next(p for p in programs if str(p.get('seriesNumber'))==str(episode))
@@ -75,6 +75,7 @@ class VodService:
         try:lease['audio_tracks']=audio_tracks(self.root,self.segment(key,0,prefetch=False))
         except Exception:lease['audio_tracks']=[]
         return {'url':'/vod/'+key+'/index.m3u8','duration_seconds':index['duration_ms']/1000,'width':index['width'],'height':index['height'],'episode':program.get('seriesNumber'),'renewal_enabled':True,
+            'original_country':str(detail.get('originalCountry') or '')[:120],'original_language':str(detail.get('language') or '')[:40],
             'audio_tracks':lease['audio_tracks'],'subtitle_tracks':[{'index':i,'language':s['language'],'url':'/vod/'+key+'/subtitles/'+str(i)+'.vtt'} for i,s in enumerate(lease.get('subtitles',[]))]}
     def playlist(self,key,audio=None):
         with self.lock:lease=self.sessions[key]
