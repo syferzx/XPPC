@@ -1,0 +1,25 @@
+const assert=require('node:assert/strict'),fs=require('node:fs');
+const {JSDOM}=require('jsdom');
+const source=fs.readFileSync('outputs/windows-hls-player/library.js','utf8');
+const snippet=source.slice(source.indexOf('const cardPreview='),source.indexOf('function mediaCard('));
+const dom=new JSDOM('<!doctype html><body><article id="a"><button class="card-open">A</button></article><article id="b"><button class="card-open">B</button></article></body>',{url:'http://127.0.0.1/',runScripts:'dangerously',pretendToBeVisual:true});
+const w=dom.window,d=w.document;let calls=[],pending=[],chosen=[];
+w.seriesIdentity=name=>({title:name.replace(/ T\d+$/,'')});w.choose=item=>chosen.push(item.id);
+w.fetch=(url,options)=>{calls.push({url,signal:options.signal});return new Promise(resolve=>pending.push(resolve))};
+w.HTMLElement.prototype.getBoundingClientRect=function(){return this.id==='b'?{left:950,right:1100,top:200,bottom:480,width:150,height:280}:this.className==='media-preview'?{width:370,height:410}:{left:50,right:230,top:100,bottom:380,width:180,height:280}};
+w.eval(snippet+'\nwindow.preview=cardPreview;');
+const a=d.getElementById('a'),b=d.getElementById('b');w.preview.bind(a,{id:'a'.repeat(20),kind:'movies',name:'A',description:'<script>bad</script>',duration:'01:58:00',score:7.4,genres:'Drama,Action'});w.preview.bind(b,{id:'b'.repeat(20),kind:'series',name:'B T3',episodes:6});
+const wait=ms=>new Promise(r=>setTimeout(r,ms));const enter=card=>card.dispatchEvent(new w.MouseEvent('pointerenter'));const leave=card=>card.dispatchEvent(new w.MouseEvent('pointerleave'));
+(async()=>{try{
+ enter(a);await wait(100);assert.equal(calls.length,0);leave(a);await wait(510);assert.equal(calls.length,0);
+ enter(a);await wait(510);let panel=d.getElementById('mediaPreview');assert.equal(panel.hidden,false);assert.equal(calls.length,1);assert(panel.textContent.includes('1 h 58 min'));assert(panel.textContent.includes('7,4'));assert.equal(panel.querySelector('script'),null);
+ pending.shift()({ok:true,json:async()=>({item:{description:'Reseña completa',cast:'Actor A',duration:'01:58:00'}})});await wait(10);assert(panel.textContent.includes('Reseña completa'));assert(panel.textContent.includes('Actor A'));
+ leave(a);panel.dispatchEvent(new w.MouseEvent('pointerenter'));await wait(210);assert.equal(panel.hidden,false);
+ d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));assert.equal(panel.hidden,true);
+ leave(a);enter(a);await wait(510);assert.equal(calls.length,1);assert(panel.textContent.includes('Reseña completa'));
+ enter(b);await wait(510);assert.equal(calls.length,2);assert.equal(panel.dataset.side,'left');assert(panel.textContent.includes('6 episodios'));assert(!panel.textContent.includes('Reseña completa'));
+ w.preview.hide();assert(calls[1].signal.aborted);pending.shift()({ok:true,json:async()=>({item:{description:'Respuesta vieja'}})});await wait(10);assert.equal(panel.hidden,true);
+ enter(b);await wait(510);pending.shift()({ok:false});await wait(10);assert(panel.textContent.includes('No se pudo ampliar'));panel.querySelector('.preview-open').click();assert.deepEqual(chosen,['b'.repeat(20)]);assert.equal(panel.hidden,true);
+ assert(calls.every(x=>x.url.startsWith('/api/vod/detail/')));assert.equal(d.querySelectorAll('.media-preview').length,1);
+ console.log('OK: hover delay, cancelled passes, metadata, safe text, cache, panel retention, Escape, edge placement, aborted/stale fetch, fallback and click without autoplay');
+}finally{dom.window.close()}})().catch(e=>{console.error(e);process.exitCode=1});

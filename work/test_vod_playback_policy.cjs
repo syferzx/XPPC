@@ -1,0 +1,25 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const Hls=require('../outputs/windows-hls-player/vendor/hls.min.js');
+const source=fs.readFileSync('outputs/windows-hls-player/player.js','utf8');
+const helpers=source.slice(source.indexOf('function playbackLoadOptions('),source.indexOf('function start('));
+let updates=0;
+const video={currentTime:10,paused:false,seeking:false,buffered:{length:2,start:i=>[0,20][i],end:i=>[12,80][i]}};
+const ctx={Hls,video,current:{kind:'movies'},hlsDiagnostic:{},Date,update:()=>updates++};
+vm.createContext(ctx);vm.runInContext(helpers,ctx);
+const defaults=JSON.stringify(Hls.DefaultConfig.fragLoadPolicy);
+const config=ctx.playbackLoadOptions(false);
+assert.equal(config.maxBufferLength,180);
+assert.equal(config.maxMaxBufferLength,240);
+assert.equal(config.maxBufferSize,192*1024*1024);
+assert.equal(config.fragLoadPolicy.default.maxTimeToFirstByteMs,45000);
+assert.equal(config.fragLoadPolicy.default.maxLoadTimeMs,120000);
+assert.deepEqual(config.fragLoadPolicy.default.timeoutRetry,Hls.DefaultConfig.fragLoadPolicy.default.timeoutRetry);
+assert.equal(JSON.stringify(Hls.DefaultConfig.fragLoadPolicy),defaults);
+assert.equal(Object.keys(ctx.playbackLoadOptions(true)).length,0);
+assert.equal(ctx.bufferedAhead(),2); // A later range must not hide an imminent gap.
+video.currentTime=15;assert.equal(ctx.bufferedAhead(),0);
+ctx.recordPlaybackWait();ctx.recordPlaybackWait();assert.equal(ctx.hlsDiagnostic.waitingCount,1);assert.equal(updates,1);assert.equal(ctx.hlsDiagnostic.lastWaitingAhead,0);
+ctx.hlsDiagnostic.isWaiting=false;video.seeking=true;ctx.recordPlaybackWait();assert.equal(updates,1);
+video.seeking=false;video.paused=true;ctx.recordPlaybackWait();assert.equal(updates,1);
+video.paused=false;video.currentTime=25;ctx.recordPlaybackWait();assert.equal(ctx.hlsDiagnostic.waitingCount,2);assert.equal(ctx.hlsDiagnostic.lastWaitingAhead,55);
+console.log('OK: VOD timeout, preserved retries/live defaults, contiguous buffer, waiting deduplication and seek/pause exclusion');
