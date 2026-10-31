@@ -43,3 +43,5 @@ node_modules/
 !/work/test_downloads.py
 !/work/test_download_ui.cjs
 !/work/test_library_redesign.cjs
+
+!/work/test_tv_rotation_retry.py

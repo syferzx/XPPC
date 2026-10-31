@@ -28,9 +28,7 @@ catalog,sources=load_catalog(ROOT,transport)
 default_id=next((c['id'] for c in catalog if c['kind']=='tv' and c['name']=='AMC HD'),None)
 stats={'playlist_requests':0,'segment_requests':0,'segment_bytes':0,'last_error':None,'client_metrics':None,'started_unix':time.time()}
 def resource(url,owner):
- parsed=urllib.parse.urlsplit(url)
- origin=tv.current(owner)[0].origin
- if (parsed.scheme,parsed.hostname,parsed.port)!=(origin.scheme,origin.hostname,origin.port):raise ValueError('Unexpected stream origin')
+ url=tv.resource_url(owner,url)
  key=hashlib.sha256((owner+':'+url).encode()).hexdigest()[:24]
  with lock:
   resources[key]=(url,owner)
@@ -45,6 +43,7 @@ def playlist(owner=default_id,url=None):
  url=url or tv.current(owner)[2]
  result=tv.fetch(owner,url,limit=1024*1024)
  if result['status']!=200 or not result['body'].startswith(b'#EXTM3U'):raise RuntimeError('HLS service returned '+str(result['status']))
+ url=result['source_url']
  lines=[]
  for line in result['body'].decode('utf8').splitlines():
   if line.startswith('#EXT-SEGMENT:'):continue
@@ -293,3 +292,4 @@ if __name__=='__main__':
  try:server.serve_forever()
  except KeyboardInterrupt:pass
  finally:portal.stop.set();downloads.close();vod.buffer.close();server.server_close()
+

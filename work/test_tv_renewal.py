@@ -12,7 +12,7 @@ class FakeTransport:
 
 class TvTests(unittest.TestCase):
     def service(self):
-        s=TvService.__new__(TvService);s.lock=threading.RLock();s.clock=lambda:100;s.catalog_updated=100;s.transports={'free':FakeTransport()};s.state={'authorization_retries':0,'network_retries':0,'last_error':None}
+        s=TvService.__new__(TvService);s.lock=threading.RLock();s.clock=lambda:100;s.catalog_updated=100;s.media_origin=('http','23.227.144.242',44822);s.transports={'free':FakeTransport()};s.state={'authorization_retries':0,'network_retries':0,'last_error':None}
         s.selection=lambda owner:({}, {'tag':'free','license':'synthetic'},'http://23.227.144.242:44822/live/synthetic.m3u8')
         self.renewals=0
         def renew(owner,tag):self.renewals+=1;s.transports[tag]=FakeTransport();return s.transports[tag]
@@ -100,3 +100,4 @@ class TvTests(unittest.TestCase):
             service.state={};service.refresh_catalog()
             self.assertEqual(len(service.channels),1);self.assertEqual(service.state['adult_catalog_error'],'PermissionError')
 if __name__=='__main__':unittest.main()
+

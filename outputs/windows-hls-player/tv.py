@@ -27,6 +27,18 @@ def make_source(original,response,tag,media_origin=MEDIA_ORIGIN):
     config['headers_original']=[(k,auth if k.lower()=='content-auth' else parsed.netloc if k.lower()=='host' else v) for k,v in original['headers_original']]
     return config
 
+def media_url(url,transport,media_origin):
+    """Rebase only known media origins; keep the channel/segment path intact."""
+    parsed=urllib.parse.urlsplit(url)
+    allowed={media_origin}|MEDIA_ROTATIONS.get(media_origin,set())
+    if ((parsed.scheme,parsed.hostname,parsed.port) not in allowed or
+            parsed.username or parsed.password or parsed.fragment):
+        raise ValueError('Unexpected stream origin')
+    origin=transport.origin
+    if (origin.scheme,origin.hostname,origin.port) not in allowed:
+        raise ValueError('Unexpected transport origin')
+    return urllib.parse.urlunsplit((origin.scheme,origin.netloc,parsed.path,parsed.query,''))
+
 class TvService:
     def __init__(self,root,portal,clock=time.time,transport_factory=RangerHlsTransport):
         self.root=Path(root);self.portal=portal;self.clock=clock;self.factory=transport_factory;self.lock=threading.RLock()
@@ -124,12 +136,18 @@ class TvService:
             if force or transport is None or transport.expires<=self.clock()+90:transport=self.renew(owner,tag)
             url=urllib.parse.urlunsplit((transport.origin.scheme,transport.origin.netloc,urllib.parse.urlsplit(url).path,'',''))
             return transport,license['license'],url
+    def resource_url(self,owner,url):
+        with self.lock:
+            return media_url(url,self.current(owner)[0],self.media_origin)
     def fetch(self,owner,url=None,**kwargs):
         with self.lock:
             transport,license,playlist=self.current(owner)
             def read(t,l):
                 for attempt in range(3):
-                    try:return t.fetch(url or playlist,license=l,**kwargs)
+                    try:
+                        target=media_url(url or playlist,t,self.media_origin)
+                        result=t.fetch(target,license=l,**kwargs)
+                        return {**result,'source_url':target}
                     except (TimeoutError,ConnectionError,http.client.RemoteDisconnected):
                         if attempt==2:raise
                         self.state['network_retries']+=1
@@ -139,3 +157,4 @@ class TvService:
                 transport,license,playlist=self.current(owner,force=True);result=read(transport,license)
             self.state['last_error']=None if result['status'] in (200,206) else 'HTTP '+str(result['status'])
             return result
+
