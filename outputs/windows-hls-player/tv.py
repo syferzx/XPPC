@@ -11,15 +11,20 @@ from channel_groups import channel_groups
 SLB_HOST='eijbs.gn5h3hxar2k.com'
 SLB_IP='206.253.89.122'
 MEDIA_ORIGIN=('http','23.227.144.242',44822)
+# Backend rotation observed in the existing provider's SLB response.
+MEDIA_ROTATIONS={('http','208.115.233.59',23455):{('http','192.119.15.58',33984)}}
 
 def make_source(original,response,tag,media_origin=MEDIA_ORIGIN):
     servers=[s for s in response.get('servers',[]) if urllib.parse.parse_qs(urllib.parse.urlsplit(s.get('media_url','')).query).get('tag')==[tag]]
     if not servers:raise ValueError('TV source not authorized for this tag')
     parsed=urllib.parse.urlsplit(servers[0]['media_url'])
-    if (parsed.scheme,parsed.hostname,parsed.port)!=media_origin or parsed.path!='/live/' or parsed.username or parsed.password or parsed.fragment:raise ValueError('TV source changed from authorized origin')
+    allowed={media_origin}|MEDIA_ROTATIONS.get(media_origin,set())
+    if (parsed.scheme,parsed.hostname,parsed.port) not in allowed or parsed.path!='/live/' or parsed.username or parsed.password or parsed.fragment:raise ValueError('TV source changed from authorized origin')
     config=dict(original);config['headers']=dict(original['headers'])
+    config['url']=urllib.parse.urlunsplit((parsed.scheme,parsed.netloc,parsed.path,'',''))
+    config['headers']['host']=parsed.netloc
     auth=parsed.path+'?'+parsed.query;config['headers']['content-auth']=auth
-    config['headers_original']=[(k,auth if k.lower()=='content-auth' else v) for k,v in original['headers_original']]
+    config['headers_original']=[(k,auth if k.lower()=='content-auth' else parsed.netloc if k.lower()=='host' else v) for k,v in original['headers_original']]
     return config
 
 class TvService:
@@ -117,6 +122,7 @@ class TvService:
             if self.clock()-self.catalog_updated>=900:self.refresh_catalog()
             _,license,url=self.selection(owner);tag=license['tag'];transport=self.transports.get(tag)
             if force or transport is None or transport.expires<=self.clock()+90:transport=self.renew(owner,tag)
+            url=urllib.parse.urlunsplit((transport.origin.scheme,transport.origin.netloc,urllib.parse.urlsplit(url).path,'',''))
             return transport,license['license'],url
     def fetch(self,owner,url=None,**kwargs):
         with self.lock:
