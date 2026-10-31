@@ -29,7 +29,8 @@ default_id=next((c['id'] for c in catalog if c['kind']=='tv' and c['name']=='AMC
 stats={'playlist_requests':0,'segment_requests':0,'segment_bytes':0,'last_error':None,'client_metrics':None,'started_unix':time.time()}
 def resource(url,owner):
  parsed=urllib.parse.urlsplit(url)
- if (parsed.scheme,parsed.hostname,parsed.port)!=(transport.origin.scheme,transport.origin.hostname,transport.origin.port):raise ValueError('Unexpected stream origin')
+ origin=tv.current(owner)[0].origin
+ if (parsed.scheme,parsed.hostname,parsed.port)!=(origin.scheme,origin.hostname,origin.port):raise ValueError('Unexpected stream origin')
  key=hashlib.sha256((owner+':'+url).encode()).hexdigest()[:24]
  with lock:
   resources[key]=(url,owner)

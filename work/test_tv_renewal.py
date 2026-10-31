@@ -1,9 +1,10 @@
-import sys,unittest,threading,json,tempfile,types
+import sys,unittest,threading,json,tempfile,types,urllib.parse
 from pathlib import Path
 sys.path.insert(0,str(Path('outputs/windows-hls-player').resolve()))
 from tv import TvService,make_source
 
 class FakeTransport:
+    origin=urllib.parse.urlsplit('http://23.227.144.242:44822/live/')
     expires=200
     status=200
     calls=0
@@ -36,6 +37,26 @@ class TvTests(unittest.TestCase):
             with self.assertRaises(ValueError):make_source({}, {'servers':[{'media_url':uri}]},'free')
     def test_rejects_other_license_tag(self):
         with self.assertRaises(ValueError):make_source({}, {'servers':[{'media_url':'http://23.227.144.242:44822/live/?tag=other'}]},'free')
+    def test_backend_rotation_updates_transport_and_host_without_mutating_template(self):
+        origin=('http','208.115.233.59',23455)
+        original={'url':'http://208.115.233.59:23455/live/','headers':{'host':'208.115.233.59:23455','content-auth':'old'},'headers_original':[('host','208.115.233.59:23455'),('content-auth','old')]}
+        response={'servers':[{'media_url':'http://192.119.15.58:33984/live/?tag=free&expired=9999999999'}]}
+        result=make_source(original,response,'free',origin)
+        self.assertEqual(result['url'],'http://192.119.15.58:33984/live/')
+        self.assertEqual(result['headers']['host'],'192.119.15.58:33984')
+        self.assertEqual(dict(result['headers_original'])['host'],'192.119.15.58:33984')
+        self.assertEqual(original['headers']['content-auth'],'old')
+        self.assertEqual(original['headers']['host'],'208.115.233.59:23455')
+    def test_current_uses_selected_transport_origin_for_channel_playlist(self):
+        service=self.service()
+        service.transports['free'].origin=urllib.parse.urlsplit('http://192.119.15.58:33984/live/')
+        self.assertEqual(service.current('a')[2],'http://192.119.15.58:33984/live/synthetic.m3u8')
+    def test_rotation_remains_scoped_to_route_and_rejects_unexpected_destinations(self):
+        for uri in ['http://127.0.0.1:33984/live/?tag=free','http://192.119.15.58:33985/live/?tag=free','http://192.119.15.58:33984/other/?tag=free','http://user:pass@192.119.15.58:33984/live/?tag=free','http://192.119.15.58:33984/live/?tag=free#x']:
+            with self.subTest(uri=uri),self.assertRaises(ValueError):
+                make_source({}, {'servers':[{'media_url':uri}]},'free',('http','208.115.233.59',23455))
+        with self.assertRaises(ValueError):
+            make_source({}, {'servers':[{'media_url':'http://192.119.15.58:33984/live/?tag=free'}]},'free')
     def test_catalog_survives_restart_and_portal_timeout(self):
         with tempfile.TemporaryDirectory(dir=Path('work')) as folder:
             root=Path(folder);(root/'work').mkdir()
