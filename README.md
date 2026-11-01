@@ -14,15 +14,14 @@ La aplicación se abre en tu navegador. No necesitas instalar Python, FFmpeg ni 
 
 Esta variante inicia directamente el motor incluido y no contiene el lanzador `XuperPC.exe` de PyInstaller. Esto no certifica la seguridad de las dependencias incluidas.
 
-## Novedades de la versión 0.1.6
+## Novedades de la versión 0.1.7
 
-- Apertura más ágil: reutiliza durante un minuto la ficha reciente del título y prepara el video antes de consultar recomendaciones. Conserva el búfer existente.
-- Configuración desde el círculo PC: preferencias de audio y subtítulos separadas para anime y para películas/series; también se aplican al preparar descargas.
-- Audio original: usa la identificación disponible; si falta, puede estimarlo por el país de origen y lo indica. Si no puede determinarlo, utiliza la pista predeterminada.
-- Corrige subtítulos que permanecían visibles al cambiar de contenido e ignora respuestas de pistas anteriores.
-- MKV original como descarga predeterminada: conserva video y audio sin recodificarlos. MP4 compatible sigue disponible como alternativa.
+- Corrige TV en vivo para instalaciones que reciben el nuevo servidor multimedia en una de las rutas admitidas.
+- Al renovar la conexión, las listas, segmentos y claves HLS utilizan el servidor autorizado vigente y conservan sus rutas.
+- Mantiene el rechazo de destinos desconocidos; no acepta servidores arbitrarios.
+- Conserva las preferencias de idiomas, las descargas MKV/MP4 y las mejoras de la versión 0.1.6.
 
-Los idiomas solo se seleccionan cuando el título los ofrece. La estimación del audio original puede requerir corrección manual. El tiempo de apertura depende también del proveedor.
+Gracias a [romario-anchaise](https://github.com/romario-anchaise) por la corrección inicial en el [pull request #1](https://github.com/syferzx/XPPC/pull/1). Se añadió una corrección de reintentos y seis pruebas adicionales: 22 pruebas de TV y DNS superadas sin conexión al proveedor.
 
 Consulta [Mis descargas](docs/DESCARGAS.md). Conserva el servidor abierto hasta terminar; una descarga interrumpida requiere volver a intentarlo.
 
@@ -39,3 +38,4 @@ El catálogo y la reproducción dependen de servicios externos. Cada instalació
 ## Licencia
 
 [MIT](LICENSE) para el código original del cliente. Los componentes externos conservan sus [licencias](THIRD_PARTY_NOTICES.md).
+
