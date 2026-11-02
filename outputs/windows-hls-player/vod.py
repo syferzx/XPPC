@@ -3,7 +3,7 @@ import collections,json,re,threading,time,urllib.parse,uuid,http.client
 from pathlib import Path
 from probe_fresh_vod_slb import codec
 from ranger_hls_transport import RangerHlsTransport
-from ranger_vod_renewal import VerifiedVodResolver,RenewingVodSource,HOST,IP
+from ranger_vod_renewal import VerifiedVodResolver,RenewingVodSource,HOST
 from ranger_vod_index import parse_idxg,hls_playlist
 from media_tracks import audio_tracks,select_audio,subtitle_tracks,fetch_subtitle,compatible_segment
 from access_profile import media_headers,vod_route
@@ -36,15 +36,15 @@ class VodService:
         programs=detail.get('simpleProgramList',[])
         if not programs:raise ValueError('No programs available')
         program=programs[0] if episode is None else next(p for p in programs if str(p.get('seriesNumber'))==str(episode))
-        verified_host,verified_ip=vod_route(self.root)
-        if verified_ip!=IP or verified_host!=HOST:raise ValueError('Unverified VOD endpoint')
+        verified_host,_=vod_route(self.root)
+        if verified_host!=HOST:raise ValueError('Unverified VOD endpoint')
         resolver=VerifiedVodResolver(codec(),media_headers(self.root,'vod'));lease={'media_id':None,'response':None,'lock':threading.RLock()}
         def renew():
             with self.portal.lock:
                 play=self.portal.request('/api/portalCore/v10/startPlayVOD',{'columnId':self.portal.columns[kind],'contentId':program['contentId'],'seriesContentId':asset['contentId'] if kind=='series' else '','type':'1','startTime':0})
                 active=json.loads((self.root/'work/portal-native/active-data.private.json').read_text(encoding='utf8'))
                 configuration=self.portal.request('/api/portalCore/v15/getSlbInfo',{'hasPay':active.get('hasPay','0'),'userIdentity':active.get('userIdentity',''),'type':'merge','appVer':'43404','lang':'es','encMediaSupported':1,'liveCodeList':['ba397e42-b664-11ed-8c55-768dd7bc60d3'],'appParams':'','reserve1':'','pipFlag':'0'})
-            config,response=resolver.resolve({'data':play},{'data':configuration})
+            config,response=resolver.resolve({'data':play},{'data':configuration},force_dns=lease['media_id'] is not None)
             media=urllib.parse.parse_qs(urllib.parse.urlsplit(config['url']).query)['media_code'][0]
             if lease['media_id'] is not None and media!=lease['media_id']:raise ValueError('Media changed; reopen this title')
             with self.lock:
@@ -53,15 +53,16 @@ class VodService:
             lease.update(media_id=media,response=response,subtitles=subtitle_tracks(play['episodeList'][0]))
             return config
         lease['source']=RenewingVodSource(renew,RangerHlsTransport)
-        transport=lease['source'].current();server=lease['response']['play_infos'][0]['servers'][0]
-        u=urllib.parse.urlsplit(server['idx_url'])
-        if u.hostname!=HOST or u.scheme!='http':raise ValueError('Unexpected index origin')
-        index_url=urllib.parse.urlunsplit(('http',IP+':80',u.path,u.query,''))
-        for attempt in range(3):
+        for attempt in range(2):
+            transport=lease['source'].current(force=attempt>0)
+            index_url=transport.config['vod_index_url']
             try:
-                result=transport.fetch(index_url,limit=4*1024*1024);break
+                result=transport.fetch(index_url,limit=4*1024*1024)
             except (TimeoutError,ConnectionError,http.client.RemoteDisconnected):
-                if attempt==2:raise
+                if attempt==1:raise
+                continue
+            if result['status'] in (401,403,409,410) and attempt==0:continue
+            break
         if result['status']!=200:raise ValueError('Video index unavailable')
         index=parse_idxg(result['body']);lease['index']=index
         key=uuid.uuid4().hex[:24]

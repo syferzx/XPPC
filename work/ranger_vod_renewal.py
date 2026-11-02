@@ -5,8 +5,9 @@ No network at import/construction. Renewal callback obtains ordinary portal gran
 import json,threading,time,urllib.parse,http.client
 from ranger_slb_http import SlbHttpClient
 from ranger_hls_transport import RangerHlsTransport
+from vod_dns import HOST,public_ipv4,resolve_vod_ips
 
-HOST='yuwc.swzablvpm.com'
+# Historical observation for old diagnostics only; no active connection uses it.
 IP='66.225.197.106'
 
 def authorized_entries(play,configuration):
@@ -19,31 +20,43 @@ def authorized_entries(play,configuration):
     if int(urllib.parse.parse_qs(auth)['expired'][0])<=time.time()+30:raise ValueError('Expired portal authorization')
     return [{'auth':auth,'license':license['license'],'media_code':movie['contentId']}]
 
-def source_config(response,entries,media_headers):
+def source_config(response,entries,media_headers,*,resolved_ip=None):
     info=next(i for i in response['play_infos'] if i['media_code']==entries[0]['media_code'])
     if not info.get('servers'):raise ValueError('SLB did not authorize a source: '+str(info.get('code','unknown')))
     server=info['servers'][0];source=urllib.parse.urlsplit(server['media_url'])
-    if (source.scheme,source.hostname,source.port) not in [('http',HOST,None),('http',HOST,80)]:raise ValueError('Source changed from verified original origin')
+    if ((source.scheme,source.hostname,source.port) not in [('http',HOST,None),('http',HOST,80)] or
+            source.username is not None or source.password is not None or source.fragment):raise ValueError('Source changed from verified original origin')
+    if resolved_ip is None:raise ValueError('Fresh validated VOD DNS destination required')
+    address=public_ipv4(resolved_ip)
+    query=urllib.parse.parse_qs(source.query)
+    if query.get('media_code')!=[entries[0]['media_code']]:raise ValueError('VOD source does not match requested media')
+    index=urllib.parse.urlsplit(server.get('idx_url',''))
+    if ((index.scheme,index.hostname,index.port) not in [('http',HOST,None),('http',HOST,80)] or
+            index.username is not None or index.password is not None or index.fragment):raise ValueError('Unexpected index origin')
     headers={k.lower():v for k,v in media_headers.items() if k.lower()!='range'}
     headers.update({'host':HOST+':80','content-license':entries[0]['license']})
-    source=urllib.parse.urlunsplit(('http',IP+':80',source.path,source.query,''))
-    return {'url':source,'headers':headers,'headers_original':list(headers.items()),'authorization_mode':'query_sign_o3'}
+    source=urllib.parse.urlunsplit(('http',address+':80',source.path,source.query,''))
+    index_url=urllib.parse.urlunsplit(('http',address+':80',index.path,index.query,''))
+    return {'url':source,'headers':headers,'headers_original':list(headers.items()),'authorization_mode':'query_sign_o3','vod_index_url':index_url}
 
 class VerifiedVodResolver:
-    def __init__(self,protocol,observed_headers,connection_factory=None):
-        self.protocol=protocol;self.headers=dict(observed_headers);self.connection_factory=connection_factory
-    def resolve(self,play,configuration):
+    def __init__(self,protocol,observed_headers,connection_factory=None,dns_resolver=resolve_vod_ips):
+        self.protocol=protocol;self.headers=dict(observed_headers);self.connection_factory=connection_factory;self.dns_resolver=dns_resolver
+    def resolve(self,play,configuration,*,force_dns=False):
         entries=authorized_entries(play,configuration)
         headers={k:v for k,v in self.headers.items() if k.lower() in ['app','app-version','ranger-id']}
         headers['Content-License']=entries[0]['license']
-        client=SlbHttpClient(self.protocol,lambda host:[IP] if host==HOST else [],self.connection_factory,extra_headers=headers)
-        for attempt in range(3):
+        for attempt in range(2):
+            addresses=self.dns_resolver(HOST,force=force_dns or attempt>0)
+            if not addresses:raise ValueError('VOD DNS unavailable')
+            addresses=[public_ipv4(ip) for ip in addresses]
+            client=SlbHttpClient(self.protocol,lambda host:addresses if host==HOST else [],self.connection_factory,extra_headers=headers)
             try:
                 value=client.request('http://'+HOST,'vod',entries);break
             except (TimeoutError,ConnectionError,http.client.RemoteDisconnected):
-                if attempt==2:raise
+                if attempt==1:raise
         self.last_response=value
-        return source_config(value,entries,self.headers),value
+        return source_config(value,entries,self.headers,resolved_ip=addresses[0]),value
 
 class RenewingVodSource:
     """Refresh before expiry, and retry once on authorization rejection."""
@@ -65,8 +78,13 @@ class RenewingVodSource:
                 except (TimeoutError,ConnectionError,http.client.RemoteDisconnected):
                     if attempt==2:raise
         # Each request owns its HTTP connection; only signing and renewal are locked.
-        result=read(transport)
-        if result['status'] in [401,403]:
+        try:result=transport.fetch(transport.url,**kwargs)
+        except (TimeoutError,ConnectionError,http.client.RemoteDisconnected):
+            with self.lock:
+                if self.transport is transport:self.current(force=True)
+                transport=self.current()
+            return read(transport)
+        if result['status'] in [401,403,409,410]:
             with self.lock:
                 # Concurrent rejections of the same generation renew just once.
                 if self.transport is transport:self.current(force=True)

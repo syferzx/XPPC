@@ -45,3 +45,14 @@ node_modules/
 !/work/test_library_redesign.cjs
 
 !/work/test_tv_rotation_retry.py
+
+
+!/work/ranger_vod_renewal.py
+
+!/work/vod_dns.py
+
+!/work/test_tv_dynamic_origins.py
+
+!/work/test_vod_dynamic_dns.py
+
+!/work/test_vod_renewal.py

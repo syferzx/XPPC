@@ -1,4 +1,4 @@
-"""TV source renewal at explicitly authorized original SLB/media destinations."""
+"""TV renewal using the known HTTPS SLB and its scoped public media destinations."""
 import hashlib,http.client,json,threading,time,urllib.parse,socket,ipaddress
 from pathlib import Path
 from ranger_hls_transport import RangerHlsTransport
@@ -18,12 +18,45 @@ MEDIA_ROTATIONS={('http','208.115.233.59',23455):{
     ('http','149.34.241.153',8119),
 }}
 
-def make_source(original,response,tag,media_origin=MEDIA_ORIGIN):
-    servers=[s for s in response.get('servers',[]) if urllib.parse.parse_qs(urllib.parse.urlsplit(s.get('media_url','')).query).get('tag')==[tag]]
+def _dynamic_media_origin(raw,parsed,media_origin,tag,now):
+    """Validate a destination issued by the already verified HTTPS SLB request.
+
+    Media hosts must be literal public IPv4 addresses: no DNS rebinding, local
+    services, alternate URL schemes, credentials or cross-channel grants.
+    This is structural validation; HTTPS at the caller establishes provenance.
+    """
+    if (not isinstance(raw,str) or not raw.isascii() or
+            any(ord(c)<=32 or ord(c)==127 for c in raw)):
+        raise ValueError('Malformed dynamic TV source')
+    try:address=ipaddress.ip_address(parsed.hostname or '')
+    except ValueError as error:raise ValueError('TV media destination must be a public IP') from error
+    if (address.version!=4 or not address.is_global or address.is_multicast or
+            address.is_reserved or parsed.scheme!=media_origin[0] or
+            parsed.scheme!='http' or parsed.port is None or not 1<=parsed.port<=65535 or
+            parsed.path!='/live/' or parsed.username is not None or
+            parsed.password is not None or parsed.fragment):
+        raise ValueError('Invalid dynamic TV media destination')
+    params=urllib.parse.parse_qs(parsed.query,keep_blank_values=True)
+    expiry=params.get('expired',[])
+    if (params.get('tag')!=[tag] or len(expiry)!=1 or not expiry[0].isascii() or
+            not expiry[0].isdigit() or int(expiry[0])<=now+90):
+        raise ValueError('Invalid or expiring dynamic TV grant')
+    return parsed.scheme,parsed.hostname,parsed.port
+
+
+def make_source(original,response,tag,media_origin=MEDIA_ORIGIN,*,verified_slb=False,now=None):
+    # Only TvService.renew enables dynamic destinations, after the known SLB
+    # hostname has passed HTTPS certificate verification in SlbHttpClient.
+    if not isinstance(response,dict) or not isinstance(response.get('servers'),list) or len(response['servers'])>128:
+        raise ValueError('Invalid TV source list')
+    servers=[s for s in response['servers'] if isinstance(s,dict) and isinstance(s.get('media_url'),str) and urllib.parse.parse_qs(urllib.parse.urlsplit(s['media_url']).query).get('tag')==[tag]]
     if not servers:raise ValueError('TV source not authorized for this tag')
     parsed=urllib.parse.urlsplit(servers[0]['media_url'])
-    allowed={media_origin}|MEDIA_ROTATIONS.get(media_origin,set())
-    if (parsed.scheme,parsed.hostname,parsed.port) not in allowed or parsed.path!='/live/' or parsed.username or parsed.password or parsed.fragment:raise ValueError('TV source changed from authorized origin')
+    if verified_slb:
+        _dynamic_media_origin(servers[0]['media_url'],parsed,media_origin,tag,time.time() if now is None else now)
+    else:
+        allowed={media_origin}|MEDIA_ROTATIONS.get(media_origin,set())
+        if (parsed.scheme,parsed.hostname,parsed.port) not in allowed or parsed.path!='/live/' or parsed.username or parsed.password or parsed.fragment:raise ValueError('TV source changed from authorized origin')
     config=dict(original);config['headers']=dict(original['headers'])
     config['url']=urllib.parse.urlunsplit((parsed.scheme,parsed.netloc,parsed.path,'',''))
     config['headers']['host']=parsed.netloc
@@ -32,9 +65,13 @@ def make_source(original,response,tag,media_origin=MEDIA_ORIGIN):
     return config
 
 def media_url(url,transport,media_origin):
-    """Rebase only known media origins; keep the channel/segment path intact."""
+    """Rebase only origins issued for this transport; retain legacy strict mode."""
     parsed=urllib.parse.urlsplit(url)
-    allowed={media_origin}|MEDIA_ROTATIONS.get(media_origin,set())
+    issued=getattr(transport,'_tv_media_origins',None)
+    allowed=set(issued) if issued is not None else {media_origin}|MEDIA_ROTATIONS.get(media_origin,set())
+    if issued is not None and (not parsed.path.startswith('/live/') or
+            not url.isascii() or any(ord(c)<=32 or ord(c)==127 for c in url)):
+        raise ValueError('Invalid issued TV resource')
     if ((parsed.scheme,parsed.hostname,parsed.port) not in allowed or
             parsed.username or parsed.password or parsed.fragment):
         raise ValueError('Unexpected stream origin')
@@ -51,7 +88,7 @@ class TvService:
         u=urllib.parse.urlsplit(self.original['url'])
         if (u.scheme,u.hostname,u.port)!=self.media_origin:raise ValueError('Unexpected original TV source')
         self.transports={};self.channels={};self.catalog_updated=0;self.protocol=None
-        self.state={'source_lookups':0,'source_renewals':0,'authorization_retries':0,'network_retries':0,'last_error':None,'renewal_enabled':True}
+        self.state={'source_lookups':0,'source_renewals':0,'authorization_retries':0,'network_retries':0,'last_error':None,'renewal_enabled':True,'dynamic_media_enabled':True,'dynamic_origin_updates':0}
         cached=self.root/'work/channel-metadata-decoded.json'
         if cached.exists():self.install_channels(json.loads(cached.read_text(encoding='utf8'))['data']['channelList'])
     def install_channels(self,rows):
@@ -127,8 +164,17 @@ class TvService:
         headers={k:v for k,v in self.original['headers'].items() if k in ['app','app-version','ranger-id']};headers['Content-License']=license['license']
         if self.protocol is None:self.protocol=LiveV9Protocol()
         value=SlbHttpClient(self.protocol,self.resolve_slb,extra_headers=headers,version=9).request(address,'live',[{'auth':grant,'license':license['license']}])
-        candidate=self.factory(make_source(self.original,value,tag,self.media_origin))
+        candidate=self.factory(make_source(self.original,value,tag,self.media_origin,verified_slb=True,now=self.clock()))
         if candidate.expires<=self.clock()+90:raise ValueError('TV source is near expiry')
+        # Keep a bounded history for queued segment URLs during a rotation.
+        # Rebase them onto the current transport; never send a grant to an old
+        # destination. Origins are learned per tag and stay in memory only.
+        candidate_origin=(candidate.origin.scheme,candidate.origin.hostname,candidate.origin.port)
+        previous=self.transports.get(tag)
+        history=[] if previous is None else getattr(previous,'_tv_media_origins',[(previous.origin.scheme,previous.origin.hostname,previous.origin.port)])
+        candidate._tv_media_origins=tuple(dict.fromkeys([self.media_origin,candidate_origin,*history]))[:8]
+        if candidate_origin!=(self.media_origin if previous is None else (previous.origin.scheme,previous.origin.hostname,previous.origin.port)):
+            self.state['dynamic_origin_updates']=self.state.get('dynamic_origin_updates',0)+1
         self.state['source_lookups']+=1
         if tag in self.transports:self.state['source_renewals']+=1
         self.transports[tag]=candidate

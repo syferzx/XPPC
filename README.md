@@ -14,12 +14,14 @@ La aplicación se abre en tu navegador. No necesitas instalar Python, FFmpeg ni 
 
 Esta variante inicia directamente el motor incluido y no contiene el lanzador `XuperPC.exe` de PyInstaller. Esto no certifica la seguridad de las dependencias incluidas.
 
-## Novedades de la versión 0.1.8
+## Novedades de la versión 0.1.9
 
-- Corrige TV en instalaciones a las que el proveedor asigna el servidor multimedia adicional observado el 2 de noviembre de 2026.
-- El proveedor puede asignar servidores distintos a instalaciones diferentes; una copia antigua podía funcionar mientras una nueva rechazaba su destino.
-- Conserva las validaciones de origen y los reintentos de la versión 0.1.7. No copia sesiones entre equipos ni acepta servidores arbitrarios.
-- 23 pruebas de TV y DNS superadas. Comprobación en la instalación descargada: lista HLS y muestra de segmento de AMC HD con HTTP 200.
+- TV: actualiza los destinos multimedia desde la respuesta normal del servicio, recibida por HTTPS, conservando las comprobaciones de ruta, puerto, etiqueta y vigencia.
+- Películas y series: resuelve la dirección del dominio multimedia conocido mediante dos servicios de DNS por HTTPS y exige que sus respuestas coincidan. Reutiliza la resolución durante su TTL, con un máximo de cinco minutos.
+- Ante un fallo de conexión, renueva la resolución y la fuente con reintentos limitados. El índice y el video utilizan el mismo destino actualizado.
+- 77 pruebas sin red superadas. Comprobaciones acotadas con una película, un episodio y AMC HD: índice/lista y muestra de datos recibidos correctamente.
+
+Esto permite adaptarse a cambios de IP mientras se mantengan el dominio y el protocolo compatibles. No garantiza compatibilidad con cambios de dominio o autorización, ni sustituye el cifrado del video HTTP. No se observó una rotación real durante estas comprobaciones; ese caso se verificó con pruebas simuladas.
 
 Mantiene el aporte de [romario-anchaise](https://github.com/romario-anchaise) en el [pull request #1](https://github.com/syferzx/XPPC/pull/1).
 
@@ -38,5 +40,6 @@ El catálogo y la reproducción dependen de servicios externos. Cada instalació
 ## Licencia
 
 [MIT](LICENSE) para el código original del cliente. Los componentes externos conservan sus [licencias](THIRD_PARTY_NOTICES.md).
+
 
 

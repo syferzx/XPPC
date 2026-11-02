@@ -31,7 +31,7 @@ class RenewalTests(unittest.TestCase):
     def test_does_not_retry_non_auth_errors(self):
         def renew():self.calls+=1;return {'expires':200,'status':400}
         self.assertEqual(RenewingVodSource(renew,Transport,lambda:0).fetch()['status'],400);self.assertEqual(self.calls,1)
-    def test_network_retries_are_bounded_without_renewing_license(self):
+    def test_network_failure_renews_once_with_bounded_retries(self):
         class Offline(Transport):
             attempts=0
             def fetch(self,url,**kwargs):
@@ -39,7 +39,7 @@ class RenewalTests(unittest.TestCase):
                 raise TimeoutError()
         source=RenewingVodSource(self.renew,Offline,lambda:0)
         with self.assertRaises(TimeoutError):source.fetch()
-        self.assertEqual(source.transport.attempts,3);self.assertEqual(self.calls,1)
+        self.assertEqual(source.transport.attempts,3);self.assertEqual(self.calls,2)
     def test_rejects_unverified_media_origin(self):
         value={'play_infos':[{'media_code':'synthetic','servers':[{'media_url':'http://example.invalid/video'}]}]}
         with self.assertRaises(ValueError):source_config(value,[{'media_code':'synthetic','license':'synthetic'}],{})
