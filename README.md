@@ -14,14 +14,14 @@ La aplicación se abre en tu navegador. No necesitas instalar Python, FFmpeg ni 
 
 Esta variante inicia directamente el motor incluido y no contiene el lanzador `XuperPC.exe` de PyInstaller. Esto no certifica la seguridad de las dependencias incluidas.
 
-## Novedades de la versión 0.1.7
+## Novedades de la versión 0.1.8
 
-- Corrige TV en vivo para instalaciones que reciben el nuevo servidor multimedia en una de las rutas admitidas.
-- Al renovar la conexión, las listas, segmentos y claves HLS utilizan el servidor autorizado vigente y conservan sus rutas.
-- Mantiene el rechazo de destinos desconocidos; no acepta servidores arbitrarios.
-- Conserva las preferencias de idiomas, las descargas MKV/MP4 y las mejoras de la versión 0.1.6.
+- Corrige TV en instalaciones a las que el proveedor asigna el servidor multimedia adicional observado el 2 de noviembre de 2026.
+- El proveedor puede asignar servidores distintos a instalaciones diferentes; una copia antigua podía funcionar mientras una nueva rechazaba su destino.
+- Conserva las validaciones de origen y los reintentos de la versión 0.1.7. No copia sesiones entre equipos ni acepta servidores arbitrarios.
+- 23 pruebas de TV y DNS superadas. Comprobación en la instalación descargada: lista HLS y muestra de segmento de AMC HD con HTTP 200.
 
-Gracias a [romario-anchaise](https://github.com/romario-anchaise) por la corrección inicial en el [pull request #1](https://github.com/syferzx/XPPC/pull/1). Se añadió una corrección de reintentos y seis pruebas adicionales: 22 pruebas de TV y DNS superadas sin conexión al proveedor.
+Mantiene el aporte de [romario-anchaise](https://github.com/romario-anchaise) en el [pull request #1](https://github.com/syferzx/XPPC/pull/1).
 
 Consulta [Mis descargas](docs/DESCARGAS.md). Conserva el servidor abierto hasta terminar; una descarga interrumpida requiere volver a intentarlo.
 
@@ -38,4 +38,5 @@ El catálogo y la reproducción dependen de servicios externos. Cada instalació
 ## Licencia
 
 [MIT](LICENSE) para el código original del cliente. Los componentes externos conservan sus [licencias](THIRD_PARTY_NOTICES.md).
+
 

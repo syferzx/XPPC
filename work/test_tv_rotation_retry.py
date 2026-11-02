@@ -3,7 +3,7 @@ import ast,collections,hashlib,sys,threading,unittest,urllib.parse,re
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'work'),str(ROOT/'outputs/windows-hls-player'),str(ROOT/'outputs/ranger-windows')]
-from tv import TvService
+from tv import TvService,make_source,media_url
 
 OLD='http://208.115.233.59:23455'
 NEW='http://192.119.15.58:33984'
@@ -18,6 +18,21 @@ class Transport:
         return {'status':self.status,'body':b'#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="key.bin"\nsegment.ts\n'}
 
 class Tests(unittest.TestCase):
+    def test_fresh_install_assigned_backend_is_scoped_and_rebased(self):
+        original={'url':OLD+'/live/','headers':{'host':'208.115.233.59:23455','content-auth':'old'},'headers_original':[('host','208.115.233.59:23455'),('content-auth','old')]}
+        assigned='http://149.34.241.153:8119'
+        origin=('http','208.115.233.59',23455)
+        response={'servers':[{'media_url':assigned+'/live/?tag=free&expired=9999999999'}]}
+        result=make_source(original,response,'free',origin)
+        self.assertEqual(result['url'],assigned+'/live/')
+        self.assertEqual(result['headers']['host'],'149.34.241.153:8119')
+        transport=Transport(assigned)
+        self.assertEqual(media_url(NEW+'/live/a.ts?sequence=2',transport,origin),assigned+'/live/a.ts?sequence=2')
+        for uri in (assigned.replace(':8119',':8120')+'/live/?tag=free',assigned+'/other/?tag=free',assigned+'/live/?tag=other'):
+            with self.subTest(uri=uri),self.assertRaises(ValueError):
+                make_source(original,{'servers':[{'media_url':uri}]},'free',origin)
+        with self.assertRaises(ValueError):make_source(original,response,'free',('http','23.227.144.242',44822))
+
     def service(self,status=409):
         s=TvService.__new__(TvService);s.lock=threading.RLock();s.clock=lambda:100;s.catalog_updated=100
         s.media_origin=('http','208.115.233.59',23455);s.transports={'free':Transport(OLD,status)}

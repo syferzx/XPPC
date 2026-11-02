@@ -12,7 +12,11 @@ SLB_HOST='eijbs.gn5h3hxar2k.com'
 SLB_IP='206.253.89.122'
 MEDIA_ORIGIN=('http','23.227.144.242',44822)
 # Backend rotation observed in the existing provider's SLB response.
-MEDIA_ROTATIONS={('http','208.115.233.59',23455):{('http','192.119.15.58',33984)}}
+MEDIA_ROTATIONS={('http','208.115.233.59',23455):{
+    ('http','192.119.15.58',33984),
+    # Observed in this installation's ordinary SLB response on 2026-11-02.
+    ('http','149.34.241.153',8119),
+}}
 
 def make_source(original,response,tag,media_origin=MEDIA_ORIGIN):
     servers=[s for s in response.get('servers',[]) if urllib.parse.parse_qs(urllib.parse.urlsplit(s.get('media_url','')).query).get('tag')==[tag]]
